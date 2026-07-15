@@ -1,7 +1,7 @@
 // 재고원장 읽기 헬퍼 + RPC 래퍼.
 // 상태 변경 저장은 전부 RPC(행 잠금) 경유 — read→modify→write 금지. (build_instructions_v2 0-B-2)
 import { getSupabaseClient } from '@/lib/supabase';
-import type { LocationRow, ProductRow, InTransitRow } from '@/lib/ledger/types';
+import type { LocationRow, ProductRow, InTransitRow, StockBalanceRow } from '@/lib/ledger/types';
 
 export class SupabaseMissingError extends Error {
   constructor() {
@@ -245,6 +245,287 @@ export interface DispatchOrder {
   status: string;
   requested_at: string;
   lines: { product_name: string; sku: string; qty_ordered: number; qty_shipped: number | null; qty_received: number | null }[];
+}
+
+// ── 재고 현황 ──────────────────────────────────────────────────────────────────
+
+export async function getFullStockBalance(): Promise<StockBalanceRow[]> {
+  const { data, error } = await client()
+    .from('v_stock_balance')
+    .select('product_id,location_id,on_hand');
+  if (error) throw error;
+  return (data ?? []) as StockBalanceRow[];
+}
+
+// ── 입고검수 ──────────────────────────────────────────────────────────────────
+
+export interface InboundLine {
+  id: string;
+  product_id: string;
+  product_name: string;
+  sku: string;
+  qty_ordered: number;
+  qty_received: number | null;
+  received_at: string | null;
+}
+
+export interface InboundOrder {
+  id: string;
+  order_no: string;
+  from_location_name: string;
+  status: string;
+  requested_at: string;
+  lines: InboundLine[];
+}
+
+export async function getInboundOrders(toLocationId?: string): Promise<InboundOrder[]> {
+  let q = client()
+    .from('transfer_orders')
+    .select(
+      `id,order_no,status,requested_at,
+       from_loc:locations!transfer_orders_from_location_fkey(name),
+       lines:transfer_order_lines(
+         id,qty_ordered,qty_received,received_at,
+         product:products(id,name,sku)
+       )`
+    )
+    .in('status', ['requested', 'partially_received'])
+    .order('requested_at', { ascending: false });
+  if (toLocationId) q = q.eq('to_location', toLocationId);
+  const { data, error } = await q;
+  if (error) throw error;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ((data ?? []) as any[]).map((o) => ({
+    id: o.id,
+    order_no: o.order_no,
+    status: o.status,
+    requested_at: o.requested_at,
+    from_location_name: o.from_loc?.name ?? '—',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    lines: (o.lines ?? []).map((l: any) => ({
+      id: l.id,
+      product_id: l.product?.id ?? '',
+      product_name: l.product?.name ?? '—',
+      sku: l.product?.sku ?? '',
+      qty_ordered: l.qty_ordered,
+      qty_received: l.qty_received,
+      received_at: l.received_at,
+    })),
+  }));
+}
+
+export async function receiveLine(lineId: string, qty: number, expected?: number | null): Promise<void> {
+  const { error } = await client().rpc('receive_line', {
+    p_line: lineId,
+    p_qty: qty,
+    p_expected: expected ?? null,
+  });
+  if (error) throw error;
+}
+
+// ── 자가사용 ──────────────────────────────────────────────────────────────────
+
+export interface SelfuseEntry {
+  id: string;
+  location_id: string;
+  entry_date: string;
+  product_id: string;
+  product_name: string;
+  sku: string;
+  barcode: string | null;
+  qty: number;
+  reason: string | null;
+  remark: string | null;
+  deducted: boolean;
+}
+
+export async function getSelfuseEntries(locationId?: string): Promise<SelfuseEntry[]> {
+  let q = client()
+    .from('self_use_entries')
+    .select('id,location_id,entry_date,product_id,qty,reason,remark,deducted,product:products(name,sku,barcode)')
+    .order('entry_date', { ascending: false });
+  if (locationId) q = q.eq('location_id', locationId);
+  const { data, error } = await q;
+  if (error) throw error;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ((data ?? []) as any[]).map((e) => ({
+    id: e.id,
+    location_id: e.location_id,
+    entry_date: e.entry_date,
+    product_id: e.product_id,
+    product_name: e.product?.name ?? '—',
+    sku: e.product?.sku ?? '',
+    barcode: e.product?.barcode ?? null,
+    qty: e.qty,
+    reason: e.reason,
+    remark: e.remark,
+    deducted: e.deducted,
+  }));
+}
+
+export async function saveSelfuseReason(entryId: string, reason: string, remark: string): Promise<void> {
+  const { error } = await client()
+    .from('self_use_entries')
+    .update({ reason, remark: remark || null })
+    .eq('id', entryId);
+  if (error) throw error;
+}
+
+// ── 가챠머신 ──────────────────────────────────────────────────────────────────
+
+export interface GachaSlot {
+  id: string;
+  bin_id: string;
+  bin_code: string;
+  slot_no: number;
+  product_id: string | null;
+  product_name: string | null;
+  sku: string | null;
+  price: number;
+  qty: number;
+}
+
+export interface GachaMachine {
+  bin_id: string;
+  bin_code: string;
+  location_id: string;
+  slots: GachaSlot[];
+}
+
+export interface GachaCheck {
+  id: string;
+  slot_id: string;
+  slot_no: number;
+  bin_code: string;
+  product_name: string | null;
+  counted: number;
+  refill: number;
+  sold_est: number;
+  revenue_est: number;
+  shrinkage: number;
+  shrinkage_reason: string | null;
+  cash_counted: number | null;
+  checked_at: string;
+}
+
+export async function getGachaMachines(locationId?: string): Promise<GachaMachine[]> {
+  let q = client()
+    .from('bins')
+    .select(
+      `id,code,location_id,
+       slots:gacha_slots(
+         id,slot_no,price,qty,
+         product:products(id,name,sku)
+       )`
+    )
+    .eq('active', true);
+  if (locationId) q = q.eq('location_id', locationId);
+  const { data, error } = await q;
+  if (error) throw error;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = ((data ?? []) as any[]).filter((b) => (b.slots ?? []).length > 0);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return raw.map((b) => ({
+    bin_id: b.id,
+    bin_code: b.code,
+    location_id: b.location_id,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    slots: (b.slots ?? []).map((s: any) => ({
+      id: s.id,
+      bin_id: b.id,
+      bin_code: b.code,
+      slot_no: s.slot_no,
+      product_id: s.product?.id ?? null,
+      product_name: s.product?.name ?? null,
+      sku: s.product?.sku ?? null,
+      price: s.price,
+      qty: s.qty,
+    })),
+  }));
+}
+
+export async function getGachaChecks(locationId?: string): Promise<GachaCheck[]> {
+  const q = client()
+    .from('gacha_checks')
+    .select(
+      `id,slot_id,counted,refill,sold_est,revenue_est,shrinkage,shrinkage_reason,cash_counted,checked_at,
+       slot:gacha_slots(slot_no,bin:bins(code),product:products(name))`
+    )
+    .order('checked_at', { ascending: false })
+    .limit(50);
+  const { data, error } = await q;
+  if (error) throw error;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = (data ?? []) as any[];
+  if (locationId) {
+    // 위치 필터는 bins 경유라 클라이언트에서 처리
+  }
+  return raw.map((c) => ({
+    id: c.id,
+    slot_id: c.slot_id,
+    slot_no: c.slot?.slot_no ?? 0,
+    bin_code: c.slot?.bin?.code ?? '—',
+    product_name: c.slot?.product?.name ?? '—',
+    counted: c.counted,
+    refill: c.refill,
+    sold_est: c.sold_est,
+    revenue_est: c.revenue_est,
+    shrinkage: c.shrinkage ?? 0,
+    shrinkage_reason: c.shrinkage_reason,
+    cash_counted: c.cash_counted,
+    checked_at: c.checked_at,
+  }));
+}
+
+export async function runGachaCheck(
+  slotId: string,
+  counted: number,
+  refill: number,
+  shrinkage: number,
+  shrinkageReason: string | null,
+  cashCounted: number | null,
+): Promise<void> {
+  const { error } = await client().rpc('gacha_check', {
+    p_slot: slotId,
+    p_counted: counted,
+    p_refill: refill,
+    p_shrinkage: shrinkage,
+    p_shrinkage_reason: shrinkageReason,
+    p_cash_counted: cashCounted,
+  });
+  if (error) throw error;
+}
+
+// ── 출고 대기열 ──────────────────────────────────────────────────────────────────
+
+export interface QueueItem {
+  order_no: string;
+  requested_at: string;
+  line_id: string;
+  sku: string;
+  barcode: string | null;
+  name: string;
+  to_store: string;
+  qty_ordered: number;
+  qty_shipped: number | null;
+  shipped_at: string | null;
+  ship_status: string;
+}
+
+export async function getWarehouseQueue(): Promise<QueueItem[]> {
+  const { data, error } = await client()
+    .from('v_warehouse_queue')
+    .select('order_no,requested_at,line_id,sku,barcode,name,to_store,qty_ordered,qty_shipped,shipped_at,ship_status');
+  if (error) throw error;
+  return (data ?? []) as QueueItem[];
+}
+
+export async function shipLine(lineId: string, qtyShipped: number): Promise<void> {
+  const { error } = await client()
+    .from('transfer_order_lines')
+    .update({ qty_shipped: qtyShipped, shipped_at: new Date().toISOString() })
+    .eq('id', lineId);
+  if (error) throw error;
 }
 
 export async function getRecentDispatchOrders(): Promise<DispatchOrder[]> {

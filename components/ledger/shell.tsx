@@ -6,12 +6,27 @@ import { ROLE_TABS, ROLE_NM, ROLES, SCREEN_NM, ScreenId } from '@/lib/ledger/rol
 import { TransitScreen } from './screens/transit-screen';
 import { BoardScreen } from './screens/board-screen';
 import { DispatchScreen } from './screens/dispatch-screen';
+import { StockScreen } from './screens/stock-screen';
+import { ReceiptScreen } from './screens/receipt-screen';
+import { GachaScreen } from './screens/gacha-screen';
+import { SelfuseScreen } from './screens/selfuse-screen';
+import { QueueScreen } from './screens/queue-screen';
 import { Placeholder } from './screens/placeholder';
 
 function ScreenHost({ screen }: { screen: ScreenId }) {
   switch (screen) {
     case 'board':
       return <BoardScreen />;
+    case 'stock':
+      return <StockScreen />;
+    case 'receipt':
+      return <ReceiptScreen />;
+    case 'gacha':
+      return <GachaScreen />;
+    case 'selfuse':
+      return <SelfuseScreen />;
+    case 'queue':
+      return <QueueScreen />;
     case 'transit':
       return <TransitScreen />;
     case 'dispatch':
