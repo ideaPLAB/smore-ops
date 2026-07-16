@@ -89,16 +89,16 @@ function ItemRow({ item, onRefresh, canDelete, selected, onSelect }: ItemRowProp
         )}
       </td>
       <td style={{ padding: '8px', textAlign: 'center' }}>
-        <button
-          type="button"
-          className={`lg-btn-sm${item.active ? '' : ' lg-btn-ghost'}`}
-          style={{ minWidth: 64 }}
-          disabled={saving}
-          onClick={toggleActive}
-        >
-          {item.active ? '발주가능' : '발주불가'}
-        </button>
-        {err && <span style={{ marginLeft: 6, fontSize: '.72rem', color: 'var(--lg-rust)' }}>{err}</span>}
+        <label className="lg-sw" title={item.active ? '발주가능 — 클릭해서 끄기' : '발주불가 — 클릭해서 켜기'}>
+          <input
+            type="checkbox"
+            checked={item.active}
+            disabled={saving}
+            onChange={toggleActive}
+          />
+          <span className="lg-sw-slider" />
+        </label>
+        {err && <div style={{ fontSize: '.7rem', color: 'var(--lg-rust)', marginTop: 2 }}>{err}</div>}
       </td>
     </tr>
   );
