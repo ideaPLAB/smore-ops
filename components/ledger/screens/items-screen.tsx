@@ -3,8 +3,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { getAllProducts, updateProductActive, updateProductOrderUnit, SupabaseMissingError } from '@/lib/ledger/queries';
 import type { ProductRow } from '@/lib/ledger/types';
+import { useRole } from '../role-context';
 
-function ItemRow({ item, onRefresh }: { item: ProductRow; onRefresh: () => void }) {
+interface ItemRowProps {
+  item: ProductRow;
+  onRefresh: () => void;
+  canDelete: boolean;
+  selected: boolean;
+  onSelect: (id: string, checked: boolean) => void;
+}
+
+function ItemRow({ item, onRefresh, canDelete, selected, onSelect }: ItemRowProps) {
   const [editUnit, setEditUnit] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
@@ -38,7 +47,17 @@ function ItemRow({ item, onRefresh }: { item: ProductRow; onRefresh: () => void 
   }
 
   return (
-    <tr style={{ borderTop: '1px solid var(--lg-line)', opacity: item.active ? 1 : 0.5 }}>
+    <tr style={{ borderTop: '1px solid var(--lg-line)', opacity: item.active ? 1 : 0.5, background: selected ? 'var(--lg-bg)' : undefined }}>
+      {canDelete && (
+        <td style={{ padding: '8px 8px', textAlign: 'center', width: 36 }}>
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(e) => onSelect(item.id, e.target.checked)}
+            style={{ cursor: 'pointer' }}
+          />
+        </td>
+      )}
       <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: '.78rem', color: 'var(--lg-muted)', whiteSpace: 'nowrap' }}>{item.sku}</td>
       <td style={{ padding: '8px 8px', fontFamily: 'monospace', fontSize: '.78rem', color: 'var(--lg-muted)', whiteSpace: 'nowrap' }}>{item.product_code ?? '—'}</td>
       <td style={{ padding: '8px 12px', fontWeight: item.active ? 600 : 400 }}>{item.name}</td>
@@ -79,15 +98,16 @@ function ItemRow({ item, onRefresh }: { item: ProductRow; onRefresh: () => void 
         >
           {item.active ? '발주가능' : '발주불가'}
         </button>
+        {err && <span style={{ marginLeft: 6, fontSize: '.72rem', color: 'var(--lg-rust)' }}>{err}</span>}
       </td>
-      {err && (
-        <td colSpan={8} style={{ padding: '4px 12px', fontSize: '.72rem', color: 'var(--lg-rust)' }}>{err}</td>
-      )}
     </tr>
   );
 }
 
 export function ItemsScreen() {
+  const { role } = useRole();
+  const canDelete = role === 'admin' || role === 'hq';
+
   const [items, setItems] = useState<ProductRow[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'noenv' | 'error'>('loading');
   const [errMsg, setErrMsg] = useState('');
@@ -95,6 +115,8 @@ export function ItemsScreen() {
   const [vendorFilter, setVendorFilter] = useState('');
   const [supplyFilter, setSupplyFilter] = useState('');
   const [uploadMsg, setUploadMsg] = useState('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -121,12 +143,49 @@ export function ItemsScreen() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? '업로드 실패');
       setUploadMsg(`✅ ${json.count.toLocaleString()}개 품목 등록 완료!`);
+      setSelectedIds(new Set());
       await load();
     } catch (err) {
       const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err);
       setUploadMsg(`❌ 오류: ${msg}`);
     } finally {
       if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  function handleSelect(id: string, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id); else next.delete(id);
+      return next;
+    });
+  }
+
+  function handleSelectAll(checked: boolean) {
+    if (checked) setSelectedIds(new Set(filtered.map((i) => i.id)));
+    else setSelectedIds(new Set());
+  }
+
+  async function handleDelete() {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`선택한 ${selectedIds.size}개 품목을 삭제하시겠습니까? 재고 이벤트가 있는 상품은 삭제되지 않을 수 있습니다.`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch('/api/products/delete', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? '삭제 실패');
+      setUploadMsg(`✅ ${json.count}개 품목 삭제 완료`);
+      setSelectedIds(new Set());
+      await load();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : JSON.stringify(err);
+      setUploadMsg(`❌ 삭제 오류: ${msg}`);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -146,13 +205,26 @@ export function ItemsScreen() {
     );
   });
 
+  const allFilteredSelected = filtered.length > 0 && filtered.every((i) => selectedIds.has(i.id));
+
   return (
     <section className="lg-screen">
       <div className="lg-page-head">
         <div>
           <p className="lg-sub">발주가능 · 발주단위 · 업체 — 본사만 수정 가능</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {canDelete && selectedIds.size > 0 && (
+            <button
+              type="button"
+              className="lg-btn-ghost"
+              style={{ color: 'var(--lg-rust)', borderColor: 'var(--lg-rust)' }}
+              disabled={deleting}
+              onClick={handleDelete}
+            >
+              {deleting ? '삭제 중…' : `선택 ${selectedIds.size}개 삭제`}
+            </button>
+          )}
           <button type="button" className="lg-btn-main" onClick={() => fileRef.current?.click()}>
             엑셀 업로드 (품목등록 양식)
           </button>
@@ -188,21 +260,11 @@ export function ItemsScreen() {
                 onChange={(e) => setSearchQ(e.target.value)}
               />
             </div>
-            <select
-              className="lg-input"
-              value={vendorFilter}
-              onChange={(e) => setVendorFilter(e.target.value)}
-              style={{ maxWidth: 180 }}
-            >
+            <select className="lg-input" value={vendorFilter} onChange={(e) => setVendorFilter(e.target.value)} style={{ maxWidth: 180 }}>
               <option value="">전체 업체</option>
               {vendors.map((v) => <option key={v} value={v}>{v}</option>)}
             </select>
-            <select
-              className="lg-input"
-              value={supplyFilter}
-              onChange={(e) => setSupplyFilter(e.target.value)}
-              style={{ maxWidth: 120 }}
-            >
+            <select className="lg-input" value={supplyFilter} onChange={(e) => setSupplyFilter(e.target.value)} style={{ maxWidth: 120 }}>
               <option value="">전체 공급</option>
               {supplyTypes.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
@@ -212,9 +274,19 @@ export function ItemsScreen() {
           </div>
 
           <div className="lg-card" style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.84rem', minWidth: 800 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.84rem', minWidth: canDelete ? 860 : 800 }}>
               <thead>
                 <tr>
+                  {canDelete && (
+                    <th style={{ padding: '10px 8px', width: 36, textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={allFilteredSelected}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </th>
+                  )}
                   <th style={{ textAlign: 'left', padding: '10px 12px', color: 'var(--lg-muted)', fontWeight: 600 }}>품목코드</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--lg-muted)', fontWeight: 600 }}>상품코드</th>
                   <th style={{ textAlign: 'left', padding: '10px 12px', color: 'var(--lg-muted)', fontWeight: 600 }}>상품명</th>
@@ -227,10 +299,21 @@ export function ItemsScreen() {
               </thead>
               <tbody>
                 {filtered.length === 0 && (
-                  <tr><td colSpan={8} style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--lg-muted)' }}>검색 결과 없음</td></tr>
+                  <tr>
+                    <td colSpan={canDelete ? 9 : 8} style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--lg-muted)' }}>
+                      검색 결과 없음
+                    </td>
+                  </tr>
                 )}
                 {filtered.map((i) => (
-                  <ItemRow key={i.id} item={i} onRefresh={load} />
+                  <ItemRow
+                    key={i.id}
+                    item={i}
+                    onRefresh={load}
+                    canDelete={canDelete}
+                    selected={selectedIds.has(i.id)}
+                    onSelect={handleSelect}
+                  />
                 ))}
               </tbody>
             </table>
@@ -238,6 +321,7 @@ export function ItemsScreen() {
 
           <p style={{ marginTop: 10, fontSize: '.76rem', color: 'var(--lg-muted)' }}>
             발주단위 칸을 눌러 바로 수정. 발주가능을 끄면 발주판에서 해당 상품 입력이 잠깁니다.
+            {canDelete && ' · 체크박스로 선택 후 삭제 (본사/마스터만 가능)'}
           </p>
         </>
       )}
