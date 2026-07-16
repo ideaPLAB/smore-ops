@@ -105,8 +105,23 @@ export function ItemsScreen() {
 
   useEffect(() => { load(); }, []);
 
-  function handleFile() {
-    setUploadMsg('상품 엑셀 업로드 기능은 준비 중입니다. 현재는 Supabase에서 직접 상품을 등록해 주세요.');
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadMsg('업로드 중…');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/products/import', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? '업로드 실패');
+      setUploadMsg(`✅ ${json.count.toLocaleString()}개 품목 등록 완료!`);
+      await load();
+    } catch (err) {
+      setUploadMsg(`❌ 오류: ${(err as Error).message}`);
+    } finally {
+      if (fileRef.current) fileRef.current.value = '';
+    }
   }
 
   const filtered = items.filter((i) => {
@@ -137,7 +152,7 @@ export function ItemsScreen() {
 
       {items.length === 0 && status === 'ready' && (
         <div className="lg-banner-warn" style={{ marginBottom: 12 }}>
-          ⚠ 상품 데이터가 없습니다 — Supabase <code>products</code> 테이블에 이카운트 상품 데이터를 먼저 입력해 주세요.
+          ⚠ 상품 데이터가 없습니다 — 위의 [엑셀 업로드] 버튼으로 이카운트 품목등록 파일을 올려주세요.
         </div>
       )}
 
