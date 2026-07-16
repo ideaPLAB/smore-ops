@@ -39,9 +39,12 @@ function ItemRow({ item, onRefresh }: { item: ProductRow; onRefresh: () => void 
 
   return (
     <tr style={{ borderTop: '1px solid var(--lg-line)', opacity: item.active ? 1 : 0.5 }}>
-      <td style={{ padding: '8px 16px' }}>{item.name}</td>
-      <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: '.8rem', color: 'var(--lg-muted)' }}>{item.sku}</td>
-      <td style={{ padding: '8px', fontFamily: 'monospace', fontSize: '.8rem', color: 'var(--lg-muted)' }}>{item.barcode ?? '—'}</td>
+      <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: '.78rem', color: 'var(--lg-muted)', whiteSpace: 'nowrap' }}>{item.sku}</td>
+      <td style={{ padding: '8px 8px', fontFamily: 'monospace', fontSize: '.78rem', color: 'var(--lg-muted)', whiteSpace: 'nowrap' }}>{item.product_code ?? '—'}</td>
+      <td style={{ padding: '8px 12px', fontWeight: item.active ? 600 : 400 }}>{item.name}</td>
+      <td style={{ padding: '8px 8px', fontFamily: 'monospace', fontSize: '.78rem', color: 'var(--lg-muted)' }}>{item.barcode ?? '—'}</td>
+      <td style={{ padding: '8px 8px', fontSize: '.8rem', color: 'var(--lg-muted)' }}>{item.vendor_name ?? '—'}</td>
+      <td style={{ padding: '8px 8px', fontSize: '.8rem', color: 'var(--lg-muted)', whiteSpace: 'nowrap' }}>{item.supply_type ?? '—'}</td>
       <td style={{ padding: '8px', textAlign: 'center' }}>
         {editUnit != null ? (
           <span style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
@@ -78,7 +81,7 @@ function ItemRow({ item, onRefresh }: { item: ProductRow; onRefresh: () => void 
         </button>
       </td>
       {err && (
-        <td colSpan={5} style={{ padding: '4px 16px', fontSize: '.72rem', color: 'var(--lg-rust)' }}>{err}</td>
+        <td colSpan={8} style={{ padding: '4px 12px', fontSize: '.72rem', color: 'var(--lg-rust)' }}>{err}</td>
       )}
     </tr>
   );
@@ -89,6 +92,8 @@ export function ItemsScreen() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'noenv' | 'error'>('loading');
   const [errMsg, setErrMsg] = useState('');
   const [searchQ, setSearchQ] = useState('');
+  const [vendorFilter, setVendorFilter] = useState('');
+  const [supplyFilter, setSupplyFilter] = useState('');
   const [uploadMsg, setUploadMsg] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -125,17 +130,27 @@ export function ItemsScreen() {
     }
   }
 
+  const vendors = Array.from(new Set(items.map((i) => i.vendor_name).filter(Boolean))).sort() as string[];
+  const supplyTypes = Array.from(new Set(items.map((i) => i.supply_type).filter(Boolean))).sort() as string[];
+
   const filtered = items.filter((i) => {
+    if (vendorFilter && i.vendor_name !== vendorFilter) return false;
+    if (supplyFilter && i.supply_type !== supplyFilter) return false;
     if (!searchQ.trim()) return true;
     const q = searchQ.toLowerCase();
-    return i.name.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q) || (i.barcode ?? '').includes(q);
+    return (
+      i.name.toLowerCase().includes(q) ||
+      i.sku.toLowerCase().includes(q) ||
+      (i.product_code ?? '').toLowerCase().includes(q) ||
+      (i.barcode ?? '').includes(q)
+    );
   });
 
   return (
     <section className="lg-screen">
       <div className="lg-page-head">
         <div>
-          <p className="lg-sub">발주가능 · 발주단위 · 바코드 — 본사만 수정 가능</p>
+          <p className="lg-sub">발주가능 · 발주단위 · 업체 — 본사만 수정 가능</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" className="lg-btn-main" onClick={() => fileRef.current?.click()}>
@@ -163,35 +178,56 @@ export function ItemsScreen() {
 
       {status === 'ready' && (
         <>
-          <div className="lg-toolbar" style={{ marginBottom: 12 }}>
+          <div className="lg-toolbar" style={{ marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
             <div className="lg-search">
               <input
                 type="search"
                 className="lg-input"
-                placeholder="상품명 · SKU · 바코드"
+                placeholder="품목코드 · 상품코드 · 상품명 · 바코드"
                 value={searchQ}
                 onChange={(e) => setSearchQ(e.target.value)}
               />
             </div>
+            <select
+              className="lg-input"
+              value={vendorFilter}
+              onChange={(e) => setVendorFilter(e.target.value)}
+              style={{ maxWidth: 180 }}
+            >
+              <option value="">전체 업체</option>
+              {vendors.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+            <select
+              className="lg-input"
+              value={supplyFilter}
+              onChange={(e) => setSupplyFilter(e.target.value)}
+              style={{ maxWidth: 120 }}
+            >
+              <option value="">전체 공급</option>
+              {supplyTypes.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
             <span style={{ fontSize: '.8rem', color: 'var(--lg-muted)', alignSelf: 'center' }}>
               {filtered.length} / {items.length}개
             </span>
           </div>
 
-          <div className="lg-card">
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.84rem' }}>
+          <div className="lg-card" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.84rem', minWidth: 800 }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left', padding: '10px 16px', color: 'var(--lg-muted)', fontWeight: 600 }}>상품명</th>
-                  <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--lg-muted)', fontWeight: 600 }}>SKU</th>
+                  <th style={{ textAlign: 'left', padding: '10px 12px', color: 'var(--lg-muted)', fontWeight: 600 }}>품목코드</th>
+                  <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--lg-muted)', fontWeight: 600 }}>상품코드</th>
+                  <th style={{ textAlign: 'left', padding: '10px 12px', color: 'var(--lg-muted)', fontWeight: 600 }}>상품명</th>
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--lg-muted)', fontWeight: 600 }}>바코드</th>
+                  <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--lg-muted)', fontWeight: 600 }}>업체</th>
+                  <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--lg-muted)', fontWeight: 600 }}>공급구분</th>
                   <th style={{ textAlign: 'center', padding: '10px 8px', color: 'var(--lg-muted)', fontWeight: 600 }}>발주단위</th>
                   <th style={{ textAlign: 'center', padding: '10px 8px', color: 'var(--lg-muted)', fontWeight: 600 }}>발주가능</th>
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 && (
-                  <tr><td colSpan={5} style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--lg-muted)' }}>검색 결과 없음</td></tr>
+                  <tr><td colSpan={8} style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--lg-muted)' }}>검색 결과 없음</td></tr>
                 )}
                 {filtered.map((i) => (
                   <ItemRow key={i.id} item={i} onRefresh={load} />

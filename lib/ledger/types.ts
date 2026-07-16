@@ -15,9 +15,12 @@ export interface LocationRow {
 
 export interface ProductRow {
   id: string;
-  sku: string;
+  sku: string;           // 이카운트 품목코드
+  product_code: string | null;  // 이카운트 상품코드
   barcode: string | null;
   name: string;
+  vendor_name: string | null;   // 업체명 (품목그룹2명)
+  supply_type: string | null;   // 공급구분 (품목그룹3명: 자사/위탁/사입)
   order_unit: number;
   lead_time_days: number;
   safety_stock: number;

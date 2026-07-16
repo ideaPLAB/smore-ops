@@ -564,7 +564,7 @@ export async function getRecentDispatchOrders(): Promise<DispatchOrder[]> {
 export async function getAllProducts(): Promise<ProductRow[]> {
   const { data, error } = await client()
     .from('products')
-    .select('id,sku,barcode,name,order_unit,lead_time_days,safety_stock,active')
+    .select('id,sku,product_code,barcode,name,vendor_name,supply_type,order_unit,lead_time_days,safety_stock,active')
     .order('name');
   if (error) throw error;
   return (data ?? []) as ProductRow[];
