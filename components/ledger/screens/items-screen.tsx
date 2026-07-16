@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getAllProducts, updateProductActive, updateProductOrderUnit, SupabaseMissingError } from '@/lib/ledger/queries';
 import type { ProductRow } from '@/lib/ledger/types';
 
@@ -89,6 +89,8 @@ export function ItemsScreen() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'noenv' | 'error'>('loading');
   const [errMsg, setErrMsg] = useState('');
   const [searchQ, setSearchQ] = useState('');
+  const [uploadMsg, setUploadMsg] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     try {
@@ -103,6 +105,10 @@ export function ItemsScreen() {
 
   useEffect(() => { load(); }, []);
 
+  function handleFile() {
+    setUploadMsg('상품 엑셀 업로드 기능은 준비 중입니다. 현재는 Supabase에서 직접 상품을 등록해 주세요.');
+  }
+
   const filtered = items.filter((i) => {
     if (!searchQ.trim()) return true;
     const q = searchQ.toLowerCase();
@@ -115,7 +121,25 @@ export function ItemsScreen() {
         <div>
           <p className="lg-sub">발주가능 · 발주단위 · 바코드 — 본사만 수정 가능</p>
         </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className="lg-btn-main" onClick={() => fileRef.current?.click()}>
+            엑셀 업로드 (품목등록 양식)
+          </button>
+          <input ref={fileRef} type="file" accept=".xlsx,.csv" style={{ display: 'none' }} onChange={handleFile} />
+        </div>
       </div>
+
+      {uploadMsg && (
+        <div className="lg-card" style={{ background: '#FFF8E1', border: '1px solid #FFD54F', marginBottom: 12, padding: '10px 14px', fontSize: '.83rem' }}>
+          ℹ️ {uploadMsg}
+        </div>
+      )}
+
+      {items.length === 0 && status === 'ready' && (
+        <div className="lg-banner-warn" style={{ marginBottom: 12 }}>
+          ⚠ 상품 데이터가 없습니다 — Supabase <code>products</code> 테이블에 이카운트 상품 데이터를 먼저 입력해 주세요.
+        </div>
+      )}
 
       {status === 'loading' && <div className="lg-card lg-empty">불러오는 중…</div>}
       {status === 'noenv' && <div className="lg-card lg-empty">Supabase 환경 변수 없음 — <code>.env.local</code> 설정 필요</div>}
