@@ -85,7 +85,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, count: upserted });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
+    let msg: string;
+    if (e instanceof Error) {
+      msg = e.message;
+    } else if (e && typeof e === 'object' && 'message' in e) {
+      msg = String((e as { message: unknown }).message);
+    } else {
+      msg = JSON.stringify(e) ?? String(e);
+    }
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
