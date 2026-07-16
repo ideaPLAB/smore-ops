@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getInboundOrders, getLocations, receiveLine, SupabaseMissingError } from '@/lib/ledger/queries';
 import type { InboundLine, InboundOrder } from '@/lib/ledger/queries';
 import { downloadCsv } from '@/lib/ledger/csv';
+import { UploadPreviewModal } from '@/components/ledger/upload-preview-modal';
 
 function DiffRow({ line, onSaved }: { line: InboundLine; onSaved: () => void }) {
   const [qty, setQty] = useState<string>(line.qty_received != null ? String(line.qty_received) : String(line.qty_ordered));
@@ -98,6 +99,8 @@ export function InboundScreen() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'noenv' | 'error'>('loading');
   const [errMsg, setErrMsg] = useState('');
   const [warehouseId, setWarehouseId] = useState<string | undefined>();
+  const [showUpload, setShowUpload] = useState(false);
+  const [notice, setNotice] = useState('');
 
   async function load() {
     try {
@@ -145,16 +148,30 @@ export function InboundScreen() {
         <div>
           <p className="lg-sub">공급업체 입고 전표 · 매장 회수 — 전표별 확인 및 수량 조정</p>
         </div>
-        {status === 'ready' && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
           <button
             type="button"
             className="lg-btn-ghost"
-            onClick={handleDownload}
-            disabled={orders.length === 0}
-            title={orders.length === 0 ? '내보낼 데이터가 없습니다' : undefined}
-          >⬇ 엑셀 다운로드</button>
-        )}
+            style={{ background: 'var(--lg-pine)', color: 'white', border: 'none', fontWeight: 600 }}
+            onClick={() => setShowUpload(true)}
+          >엑셀로 입고 등록</button>
+          {status === 'ready' && (
+            <button
+              type="button"
+              className="lg-btn-ghost"
+              onClick={handleDownload}
+              disabled={orders.length === 0}
+              title={orders.length === 0 ? '내보낼 데이터가 없습니다' : undefined}
+            >⬇ 엑셀 다운로드</button>
+          )}
+        </div>
       </div>
+
+      {notice && (
+        <div className="lg-card" style={{ background: '#E8F5E9', border: '1px solid #A5D6A7', marginBottom: 12, padding: '10px 14px', fontSize: '.83rem' }}>
+          {notice}
+        </div>
+      )}
 
       {status === 'loading' && <div className="lg-card lg-empty">불러오는 중…</div>}
       {status === 'noenv' && <div className="lg-card lg-empty">Supabase 환경 변수 없음 — <code>.env.local</code> 설정 필요</div>}
@@ -185,6 +202,17 @@ export function InboundScreen() {
             </>
           )}
         </>
+      )}
+
+      {showUpload && (
+        <UploadPreviewModal
+          title="엑셀로 입고 등록"
+          description="이카운트 구매입고 양식(품목코드·수량) 그대로 업로드하면 창고 입고 전표가 생성됩니다. 재고는 아래 목록에서 [입고 확인]할 때 반영돼요. 미매칭 건은 검역 보관됩니다."
+          endpoint="/api/inbound/import"
+          applyLabel="입고 전표 생성"
+          onClose={() => setShowUpload(false)}
+          onDone={(msg) => { setNotice(msg); load(); }}
+        />
       )}
     </section>
   );

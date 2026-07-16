@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { getWarehouseQueue, shipLine } from '@/lib/ledger/queries';
 import type { QueueItem } from '@/lib/ledger/queries';
 import { downloadCsv } from '@/lib/ledger/csv';
+import { UploadPreviewModal } from '@/components/ledger/upload-preview-modal';
 
 // 전표별로 그룹핑
 function groupByOrder(items: QueueItem[]): Record<string, QueueItem[]> {
@@ -105,6 +106,8 @@ export function QueueScreen() {
   const [items, setItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const [showUpload, setShowUpload] = useState(false);
+  const [notice, setNotice] = useState('');
   const version = useRef(0);
 
   function load() {
@@ -144,14 +147,28 @@ export function QueueScreen() {
     <div>
       <div className="lg-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <p className="lg-sub">전표를 펼쳐 피킹 수량 입력 → 전표 단위 출고처리</p>
-        <button
-          type="button"
-          className="lg-btn-ghost"
-          onClick={handleDownload}
-          disabled={items.length === 0}
-          title={items.length === 0 ? '내보낼 데이터가 없습니다' : undefined}
-        >⬇ 엑셀 다운로드</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+          <button
+            type="button"
+            className="lg-btn-ghost"
+            style={{ background: 'var(--lg-pine)', color: 'white', border: 'none', fontWeight: 600 }}
+            onClick={() => setShowUpload(true)}
+          >온라인 출고 업로드</button>
+          <button
+            type="button"
+            className="lg-btn-ghost"
+            onClick={handleDownload}
+            disabled={items.length === 0}
+            title={items.length === 0 ? '내보낼 데이터가 없습니다' : undefined}
+          >⬇ 엑셀 다운로드</button>
+        </div>
       </div>
+
+      {notice && (
+        <div className="lg-card" style={{ background: '#E8F5E9', border: '1px solid #A5D6A7', marginBottom: 12, padding: '10px 14px', fontSize: '.83rem' }}>
+          {notice}
+        </div>
+      )}
 
       {err && <p className="lg-err">{err}</p>}
 
@@ -179,6 +196,17 @@ export function QueueScreen() {
       )}
 
       <p className="lg-hint">발주와 다르게 처리하면 즉시 표시되고, 미출고분은 창고로 자동 복원됩니다.</p>
+
+      {showUpload && (
+        <UploadPreviewModal
+          title="온라인 출고파일 업로드"
+          description="스마트스토어 등 온라인 주문 출고 리스트 — 상품명/품목코드로 매칭해 창고 재고를 즉시 차감합니다. 미매칭 건은 검역 보관됩니다. (품목코드 포함 양식 권장)"
+          endpoint="/api/online-ship/import"
+          applyLabel="창고 차감 적용"
+          onClose={() => setShowUpload(false)}
+          onDone={(msg) => { setNotice(msg); load(); }}
+        />
+      )}
     </div>
   );
 }
