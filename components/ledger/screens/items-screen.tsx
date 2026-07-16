@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { getAllProducts, updateProductActive, updateProductOrderUnit, SupabaseMissingError } from '@/lib/ledger/queries';
+import { getAllProducts, SupabaseMissingError } from '@/lib/ledger/queries';
 import type { ProductRow } from '@/lib/ledger/types';
 import { useRole } from '../role-context';
 
@@ -24,11 +24,17 @@ function ItemRow({ item, onRefresh, canDelete, selected, onSelect }: ItemRowProp
     if (isNaN(n) || n < 1) { setErr('1 이상 입력'); return; }
     setSaving(true); setErr('');
     try {
-      await updateProductOrderUnit(item.id, n);
+      const res = await fetch('/api/products/update', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, order_unit: n }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? '저장 실패');
       onRefresh();
       setEditUnit(null);
     } catch (e) {
-      setErr((e as Error)?.message ?? String(e));
+      setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
@@ -37,10 +43,16 @@ function ItemRow({ item, onRefresh, canDelete, selected, onSelect }: ItemRowProp
   async function toggleActive() {
     setSaving(true); setErr('');
     try {
-      await updateProductActive(item.id, !item.active);
+      const res = await fetch('/api/products/update', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, active: !item.active }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? '변경 실패');
       onRefresh();
     } catch (e) {
-      setErr((e as Error)?.message ?? String(e));
+      setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
     }
