@@ -561,20 +561,33 @@ export async function getRecentDispatchOrders(): Promise<DispatchOrder[]> {
 
 // ── 상품관리 ──────────────────────────────────────────────────────────────────
 
+const PRODUCT_COLS =
+  'id,sku,product_code,barcode,name,vendor_name,supply_type,order_unit,lead_time_days,safety_stock,active';
+
 export async function getAllProducts(): Promise<ProductRow[]> {
-  // Supabase/PostgREST는 요청당 기본 1000행까지만 반환하므로 range로 페이지네이션해서 전부 조회
+  // Supabase/PostgREST는 요청당 기본 1000행까지만 반환한다.
+  // 전체 개수를 먼저 구한 뒤 페이지들을 병렬 조회해서 순차 왕복 지연을 줄인다.
   const PAGE = 1000;
+  const { count, error: cErr } = await client()
+    .from('products')
+    .select('id', { count: 'exact', head: true });
+  if (cErr) throw cErr;
+
+  const total = count ?? 0;
+  const pages = Math.max(1, Math.ceil(total / PAGE));
+  const results = await Promise.all(
+    Array.from({ length: pages }, (_, p) =>
+      client()
+        .from('products')
+        .select(PRODUCT_COLS)
+        .order('name')
+        .range(p * PAGE, p * PAGE + PAGE - 1),
+    ),
+  );
   const all: ProductRow[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await client()
-      .from('products')
-      .select('id,sku,product_code,barcode,name,vendor_name,supply_type,order_unit,lead_time_days,safety_stock,active')
-      .order('name')
-      .range(from, from + PAGE - 1);
+  for (const { data, error } of results) {
     if (error) throw error;
-    const rows = (data ?? []) as ProductRow[];
-    all.push(...rows);
-    if (rows.length < PAGE) break;
+    all.push(...((data ?? []) as ProductRow[]));
   }
   return all;
 }

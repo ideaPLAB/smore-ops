@@ -217,6 +217,11 @@ export function ItemsScreen() {
     );
   });
 
+  // 9천개 넘는 행을 한 번에 그리면 브라우저가 버벅이므로 화면에는 앞쪽 일부만 렌더
+  const DISPLAY_CAP = 300;
+  const visible = filtered.slice(0, DISPLAY_CAP);
+  const hiddenCount = filtered.length - visible.length;
+
   const allFilteredSelected = filtered.length > 0 && filtered.every((i) => selectedIds.has(i.id));
 
   return (
@@ -317,7 +322,7 @@ export function ItemsScreen() {
                     </td>
                   </tr>
                 )}
-                {filtered.map((i) => (
+                {visible.map((i) => (
                   <ItemRow
                     key={i.id}
                     item={i}
@@ -327,6 +332,13 @@ export function ItemsScreen() {
                     onSelect={handleSelect}
                   />
                 ))}
+                {hiddenCount > 0 && (
+                  <tr>
+                    <td colSpan={canDelete ? 9 : 8} style={{ padding: '14px 16px', textAlign: 'center', color: 'var(--lg-muted)', fontSize: '.8rem' }}>
+                      +{hiddenCount.toLocaleString()}개 더 있음 · 위 검색/필터로 좁혀서 확인하세요
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
