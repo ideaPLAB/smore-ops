@@ -9,10 +9,16 @@ import {
   getCurrentRound,
   getOrderInputs,
   saveOrderInput,
+  previewRoundSplit,
+  confirmRoundOrders,
+  getConfirmation,
+  cancelConfirmation,
   SupabaseMissingError,
   type OrderBoardRow,
   type OrderRound,
   type OrderInput,
+  type SplitLine,
+  type RoundConfirmation,
 } from '@/lib/ledger/queries';
 import type { LocationRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
@@ -38,6 +44,116 @@ function rowClass(row: OrderBoardRow, inputVal: number | null, proposed: number)
   return '';
 }
 
+// 최종 확인 모달 — 창고분/업체분 분할을 보여주고 확정한다.
+function ConfirmReviewModal({
+  roundId, locationId, locationName, onClose, onConfirmed,
+}: {
+  roundId: string;
+  locationId: string;
+  locationName: string;
+  onClose: () => void;
+  onConfirmed: (msg: string) => void;
+}) {
+  const [lines, setLines] = useState<SplitLine[] | null>(null);
+  const [err, setErr] = useState('');
+  const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    previewRoundSplit(roundId, locationId)
+      .then(setLines)
+      .catch((e) => setErr((e as Error).message));
+  }, [roundId, locationId]);
+
+  const whLines = (lines ?? []).filter((l) => l.warehouse_qty > 0);
+  const vendorLines = (lines ?? []).filter((l) => l.vendor_qty > 0);
+
+  // 업체분 업체별 그룹
+  const vendorGroups: [string, SplitLine[]][] = (() => {
+    const m = new Map<string, SplitLine[]>();
+    for (const l of vendorLines) {
+      const arr = m.get(l.vendor);
+      if (arr) arr.push(l); else m.set(l.vendor, [l]);
+    }
+    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0], 'ko'));
+  })();
+
+  async function doConfirm() {
+    setConfirming(true); setErr('');
+    try {
+      const res = await confirmRoundOrders(roundId, locationId);
+      onConfirmed(`✅ 발주 확정 — 전표 ${res.order_nos.length}건 생성 (창고분 ${res.warehouse_items} · 업체분 ${res.vendor_items}품목, 총 ${res.total_qty}개)`);
+      onClose();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  const empty = lines != null && whLines.length === 0 && vendorLines.length === 0;
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background: 'white', borderRadius: 16, padding: 24, width: '100%', maxWidth: 640, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: '1.05rem' }}>{locationName} · 발주 최종 확인</h2>
+        <p style={{ margin: '0 0 16px', color: 'var(--lg-muted)', fontSize: '.8rem' }}>
+          창고에서 갈 것과 업체에 발주할 것이 자동으로 나뉩니다. 확정하면 전표가 생성됩니다.
+        </p>
+
+        {err && <p className="lg-err" style={{ fontSize: '.82rem' }}>{err}</p>}
+        {lines == null && !err && <p className="lg-empty">계산 중…</p>}
+        {empty && <div className="lg-card lg-empty">확정할 최종수량이 없습니다.</div>}
+
+        {whLines.length > 0 && (
+          <>
+            <div className="lg-vch-h" style={{ margin: '4px 0', fontSize: '.8rem', fontWeight: 700 }}>
+              창고 출고분 → 출고요청 전표 · {whLines.length}품목
+            </div>
+            {whLines.map((l) => (
+              <div key={`w-${l.sku}`} style={{ display: 'flex', gap: 10, padding: '6px 10px', fontSize: '.82rem', borderBottom: '1px solid var(--lg-line-soft)' }}>
+                <span style={{ fontFamily: 'monospace', fontSize: '.74rem', color: 'var(--lg-muted)', flex: '0 0 90px' }}>{l.sku}</span>
+                <span style={{ flex: 1 }}>{l.name}</span>
+                <span style={{ fontWeight: 700, flex: '0 0 auto' }}>{l.warehouse_qty}개</span>
+              </div>
+            ))}
+          </>
+        )}
+
+        {vendorGroups.length > 0 && (
+          <>
+            <div className="lg-vch-h" style={{ margin: '14px 0 4px', fontSize: '.8rem', fontWeight: 700, color: 'var(--lg-hazel)' }}>
+              업체 발주분 → 업체별 구매발주 전표 · {vendorLines.length}품목
+            </div>
+            {vendorGroups.map(([vendor, ls]) => (
+              <div key={`v-${vendor}`}>
+                <div style={{ padding: '6px 10px 2px', fontSize: '.74rem', fontWeight: 700, color: 'var(--lg-muted)' }}>{vendor}</div>
+                {ls.map((l) => (
+                  <div key={`v-${l.sku}`} style={{ display: 'flex', gap: 10, padding: '6px 10px', fontSize: '.82rem', borderBottom: '1px solid var(--lg-line-soft)' }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: '.74rem', color: 'var(--lg-muted)', flex: '0 0 90px' }}>{l.sku}</span>
+                    <span style={{ flex: 1 }}>{l.name}</span>
+                    <span style={{ fontWeight: 700, flex: '0 0 auto' }}>{l.vendor_qty}개</span>
+                    <span style={{ color: 'var(--lg-faint)', fontSize: '.72rem', flex: '0 0 auto' }}>창고 부족분</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
+          <button type="button" className="lg-btn-ghost" onClick={onClose} disabled={confirming}>취소</button>
+          <button type="button" className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={confirming || empty || lines == null} onClick={doConfirm}>
+            {confirming ? '전표 생성 중…' : '발주 확정 · 전표 생성'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function BoardScreen() {
   const { role } = useRole();
 
@@ -55,6 +171,9 @@ export function BoardScreen() {
   const [searchQ, setSearchQ] = useState('');
   const [toast, setToast] = useState('');
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<RoundConfirmation | null>(null);
+  const [showReview, setShowReview] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   function showToast(msg: string) {
@@ -92,6 +211,14 @@ export function BoardScreen() {
         m.set(`${oi.product_id}|${oi.location_id}`, oi.final_qty);
       });
       setInputs(m);
+
+      // 이 매장×라운드의 활성 확정 조회
+      if (rnd && targetLoc) {
+        try { setConfirmation(await getConfirmation(rnd.id, targetLoc)); }
+        catch { setConfirmation(null); }
+      } else {
+        setConfirmation(null);
+      }
       setStatus('ready');
     } catch (e) {
       if (e instanceof SupabaseMissingError) setStatus('noenv');
@@ -144,6 +271,33 @@ export function BoardScreen() {
       r.dead_stock_6m ? '불가' : '가능',
     ]);
     downloadCsv('발주판.csv', headers, rows);
+  }
+
+  // 이카운트 업로드용 파일 — 확정 스냅샷 기준
+  function handleDownloadRound() {
+    if (!confirmation) return;
+    const store = storeLocations.find((l) => l.id === confirmation.location_id)?.name ?? '';
+    const headers = ['품목코드', '품목명', '업체', '매장', '수량', '창고분', '업체분'];
+    const rows = confirmation.snapshot
+      .slice()
+      .sort((a, b) => String(a.vendor).localeCompare(String(b.vendor), 'ko'))
+      .map((it) => [it.sku, it.name, it.vendor, store, it.qty, it.warehouse_qty, it.vendor_qty]);
+    downloadCsv(`이카운트업로드_발주_${store}.csv`, headers, rows);
+  }
+
+  async function handleCancelConfirm() {
+    if (!confirmation) return;
+    if (!window.confirm('발주 확정을 취소하고 전표를 회수할까요? (출고·입고가 시작된 전표가 있으면 취소되지 않습니다)')) return;
+    setCancelling(true);
+    try {
+      await cancelConfirmation(confirmation.id);
+      showToast('확정이 취소됐어요 — 전표 회수, 창고재고 복원 완료');
+      await loadData(locationId);
+    } catch (e) {
+      showToast(`취소 실패: ${(e as Error).message}`);
+    } finally {
+      setCancelling(false);
+    }
   }
 
   const storeLocations = locations.filter((l) => l.type === 'store' || l.type === 'popup');
@@ -348,20 +502,41 @@ export function BoardScreen() {
             <span><i className="lg-li-new" /> 신규 상품 — 유사상품 기준 적용</span>
           </div>
 
-          {/* 본사 전용: 확정 버튼 */}
-          {isHq && round && (
+          {/* 본사 전용: 확정 흐름 */}
+          {isHq && round && !confirmation && (
             <div className="lg-hq-bar">
               <button
                 type="button"
                 className="lg-btn-main"
                 disabled={salesStale}
                 title={salesStale ? '판매 데이터가 낡아 확정 불가' : ''}
+                onClick={() => setShowReview(true)}
               >
                 입력 내용 최종 확인 →
               </button>
               {salesStale && (
                 <span className="lg-dim" style={{ fontSize: '.78rem' }}>판매 데이터 낡음 — 신뢰 불가</span>
               )}
+            </div>
+          )}
+
+          {/* 확정 완료 박스 */}
+          {isHq && round && confirmation && (
+            <div className="lg-card" style={{ marginTop: 12, background: '#E8F5E9', border: '1px solid #A5D6A7', padding: '14px 16px' }}>
+              <div style={{ fontWeight: 700, fontSize: '.9rem', marginBottom: 6 }}>
+                ✓ {round.title} 발주 확정 완료
+              </div>
+              <div style={{ fontSize: '.8rem', color: 'var(--lg-muted)', marginBottom: 12 }}>
+                {storeLocations.find((l) => l.id === confirmation.location_id)?.name} · {confirmation.snapshot.length}품목 · 전표 {confirmation.order_nos.join(', ') || '없음'}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button type="button" className="lg-btn-main" style={{ width: 'auto', padding: '9px 16px' }} onClick={handleDownloadRound}>
+                  이카운트 업로드용 파일 다운로드
+                </button>
+                <button type="button" className="lg-btn-ghost" disabled={cancelling} onClick={handleCancelConfirm}>
+                  {cancelling ? '취소 중…' : '확정 취소 (전표 회수)'}
+                </button>
+              </div>
             </div>
           )}
 
@@ -374,6 +549,16 @@ export function BoardScreen() {
       )}
 
       {toast && <div className="lg-toast">{toast}</div>}
+
+      {showReview && round && (
+        <ConfirmReviewModal
+          roundId={round.id}
+          locationId={locationId}
+          locationName={storeLocations.find((l) => l.id === locationId)?.name ?? ''}
+          onClose={() => setShowReview(false)}
+          onConfirmed={(msg) => { showToast(msg); loadData(locationId); }}
+        />
+      )}
     </section>
   );
 }

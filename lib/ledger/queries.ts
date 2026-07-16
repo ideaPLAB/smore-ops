@@ -188,6 +188,77 @@ export async function saveOrderInput(
   if (error) throw error;
 }
 
+// ── 발주 확정 → 전표 생성 (창고분/업체분 분리) — schema_patch_v0_12.sql ──
+export interface SplitLine {
+  sku: string;
+  name: string;
+  vendor: string;
+  final_qty: number;
+  warehouse_qty: number;
+  vendor_qty: number;
+}
+
+export interface ConfirmResult {
+  confirmation_id: string;
+  order_nos: string[];
+  warehouse_items: number;
+  vendor_items: number;
+  total_qty: number;
+}
+
+export interface SnapshotItem {
+  sku: string;
+  name: string;
+  vendor: string;
+  qty: number;
+  proposed: number;
+  warehouse_qty: number;
+  vendor_qty: number;
+}
+
+export interface RoundConfirmation {
+  id: string;
+  round_id: string;
+  location_id: string;
+  confirmed_at: string;
+  order_nos: string[];
+  snapshot: SnapshotItem[];
+  cancelled: boolean;
+}
+
+// 확정 전 미리보기 — 창고분/업체분 분할만 계산 (쓰기 없음).
+export async function previewRoundSplit(roundId: string, locationId: string): Promise<SplitLine[]> {
+  const { data, error } = await client().rpc('preview_round_split', { p_round: roundId, p_location: locationId });
+  if (error) throw error;
+  return (data ?? []) as SplitLine[];
+}
+
+// 발주 확정 — 전표 생성 + 확정 스냅샷 기록. 반환: 생성 전표번호·건수.
+export async function confirmRoundOrders(roundId: string, locationId: string): Promise<ConfirmResult> {
+  const { data, error } = await client().rpc('confirm_round_orders', { p_round: roundId, p_location: locationId });
+  if (error) throw error;
+  return data as ConfirmResult;
+}
+
+// 매장×라운드의 활성 확정 조회 (없으면 null).
+export async function getConfirmation(roundId: string, locationId: string): Promise<RoundConfirmation | null> {
+  const { data, error } = await client()
+    .from('order_confirmations')
+    .select('id,round_id,location_id,confirmed_at,order_nos,snapshot,cancelled')
+    .eq('round_id', roundId)
+    .eq('location_id', locationId)
+    .eq('cancelled', false)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as RoundConfirmation | null) ?? null;
+}
+
+// 확정 취소 — 미출고·미입고 전표만 회수(창고재고 자동 복원). 시작된 전표 있으면 예외.
+export async function cancelConfirmation(confirmationId: string): Promise<void> {
+  const { error } = await client().rpc('cancel_confirmation', { p_confirmation: confirmationId });
+  if (error) throw error;
+}
+
 // ── 출고요청 전표 생성 — from은 창고(type='warehouse'), to는 매장
 export interface DispatchLine {
   product_id: string;
