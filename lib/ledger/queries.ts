@@ -323,6 +323,26 @@ export async function receiveLine(lineId: string, qty: number, expected?: number
   if (error) throw error;
 }
 
+// 수기 입고 등록 — 전표 없이 도착한 물건을 매장 재고에 즉시 가산 (store_receipt).
+// SQL: schema_patch_v0_10.sql 의 manual_receive RPC 필요.
+export async function manualReceive(args: {
+  productId: string;
+  locationId: string;
+  qty: number;
+  note?: string | null;
+  source?: string | null;
+}): Promise<number> {
+  const { data, error } = await client().rpc('manual_receive', {
+    p_product: args.productId,
+    p_location: args.locationId,
+    p_qty: args.qty,
+    p_note: args.note ?? null,
+    p_source: args.source ?? null,
+  });
+  if (error) throw error;
+  return data as number;
+}
+
 // ── 자가사용 ──────────────────────────────────────────────────────────────────
 
 export interface SelfuseEntry {

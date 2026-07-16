@@ -11,6 +11,7 @@ import {
   type DispatchOrder,
 } from '@/lib/ledger/queries';
 import type { LocationRow, ProductRow } from '@/lib/ledger/types';
+import { downloadCsv } from '@/lib/ledger/csv';
 
 function statusLabel(s: string) {
   if (s === 'requested') return '이동중';
@@ -158,13 +159,41 @@ export function DispatchScreen() {
     }
   }
 
+  function handleDownload() {
+    // 보낸 출고요청 전표/라인을 한 줄씩 CSV로 내보내기
+    const headers = ['전표번호', '유형', '도착지', '요청일', '품목코드', '품목명', '발주', '출고', '검수'];
+    const rows = history.flatMap((o) =>
+      o.lines.map((l) => [
+        o.order_no,
+        statusLabel(o.status),
+        o.to_location_name,
+        fmtDate(o.requested_at),
+        l.sku,
+        l.product_name,
+        l.qty_ordered,
+        l.qty_shipped ?? '',
+        l.qty_received ?? '',
+      ]),
+    );
+    downloadCsv('출고요청.csv', headers, rows);
+  }
+
   const storeLocations = locations.filter((l) => l.type === 'store' || l.type === 'popup');
 
   return (
     <section className="lg-screen">
-      <div className="lg-page-head">
+      <div className="lg-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <div>
           <p className="lg-sub">물류사에 보내는 출고예정전표 — 보내는 순간 이동중 기록 시작</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+          <button
+            type="button"
+            className="lg-btn-ghost"
+            onClick={handleDownload}
+            disabled={history.length === 0}
+            title={history.length === 0 ? '내보낼 데이터가 없습니다' : undefined}
+          >⬇ 엑셀 다운로드</button>
         </div>
       </div>
 

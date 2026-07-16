@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getInTransitOrders, TransitOrder, TransitLine, SupabaseMissingError } from '@/lib/ledger/queries';
+import { downloadCsv } from '@/lib/ledger/csv';
 
 function daysSince(iso: string): number {
   const ms = Date.now() - new Date(iso).getTime();
@@ -60,12 +61,46 @@ export function TransitScreen() {
     });
   }
 
+  // 화면에 보이는 이동중 데이터를 그대로 CSV로 — 전표별 품목 행을 펼쳐서 내보낸다.
+  function handleDownload() {
+    const headers = ['전표번호', '도착지', '상품코드', '상품명', '발주', '물류출고', '매장검수', '경과일', '상태'];
+    const rows: unknown[][] = [];
+    orders.forEach((o) => {
+      const days = daysSince(o.requested_at);
+      const hasUnreceived = o.lines.some((l) => l.qty_received == null);
+      const over = days > 7 && hasUnreceived;
+      o.lines.forEach((l) => {
+        rows.push([
+          o.order_no,
+          o.to_location_name,
+          l.sku,
+          l.product_name,
+          l.qty_ordered,
+          l.qty_shipped ?? '',
+          l.qty_received ?? '',
+          hasUnreceived ? `${days}일째` : '',
+          lineNote(l, over),
+        ]);
+      });
+    });
+    downloadCsv('이동중현황.csv', headers, rows);
+  }
+
   return (
     <section className="lg-screen">
-      <div className="lg-page-head">
+      <div className="lg-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <div>
           <p className="lg-sub">창고를 떠나 매장에 닿기 전까지 — 세 숫자로 오류 위치가 보임</p>
         </div>
+        {status === 'ready' && (
+          <button
+            type="button"
+            className="lg-btn-ghost"
+            onClick={handleDownload}
+            disabled={orders.length === 0}
+            title={orders.length === 0 ? '내보낼 데이터가 없습니다' : undefined}
+          >⬇ 엑셀 다운로드</button>
+        )}
       </div>
 
       {status === 'loading' && <div className="lg-card lg-empty">불러오는 중…</div>}

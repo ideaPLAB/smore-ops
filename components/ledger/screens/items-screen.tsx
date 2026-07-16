@@ -165,6 +165,31 @@ export function ItemsScreen() {
     }
   }
 
+  function handleDownload() {
+    // 이카운트 품목등록 양식으로 내보내기 (현재 필터/검색 결과 기준)
+    const headers = ['품목코드', '품목그룹2명', '품목명', '바코드', '발주기준수량', '품목그룹3명', '발주가능', '비고'];
+    const rows = filtered.map((p) => [
+      p.sku,
+      p.vendor_name ?? '',
+      p.name,
+      p.barcode ?? '',
+      p.order_unit,
+      p.supply_type ?? '',
+      p.active ? '' : '품절',
+      '',
+    ]);
+    const esc = (c: unknown) => {
+      const s = String(c ?? '');
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const csv = '﻿' + [headers, ...rows].map((r) => r.map(esc).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    a.download = '품목등록.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
   function handleSelect(id: string, checked: boolean) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -226,11 +251,11 @@ export function ItemsScreen() {
 
   return (
     <section className="lg-screen">
-      <div className="lg-page-head">
+      <div className="lg-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <div>
-          <p className="lg-sub">발주가능 · 발주단위 · 업체 — 본사만 수정 가능</p>
+          <p className="lg-sub" style={{ marginTop: 2 }}>발주가능 · 발주단위 · 업체 — 본사만 수정 가능</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
           {canDelete && selectedIds.size > 0 && (
             <button
               type="button"
@@ -242,7 +267,15 @@ export function ItemsScreen() {
               {deleting ? '삭제 중…' : `선택 ${selectedIds.size}개 삭제`}
             </button>
           )}
-          <button type="button" className="lg-btn-main" onClick={() => fileRef.current?.click()}>
+          <button type="button" className="lg-btn-ghost" onClick={handleDownload}>
+            ⬇ 엑셀 다운로드
+          </button>
+          <button
+            type="button"
+            className="lg-btn-ghost"
+            style={{ background: 'var(--lg-pine)', color: 'white', border: 'none', fontWeight: 600 }}
+            onClick={() => fileRef.current?.click()}
+          >
             엑셀 업로드 (품목등록 양식)
           </button>
           <input ref={fileRef} type="file" accept=".xlsx,.csv" style={{ display: 'none' }} onChange={handleFile} />

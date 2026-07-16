@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { getSelfuseEntries, saveSelfuseReason } from '@/lib/ledger/queries';
+import { useEffect, useRef, useState } from 'react';
+import { getSelfuseEntries, saveSelfuseReason, getLocations } from '@/lib/ledger/queries';
 import type { SelfuseEntry } from '@/lib/ledger/queries';
+import type { LocationRow } from '@/lib/ledger/types';
+import { downloadCsv } from '@/lib/ledger/csv';
 
 const REASONS = ['시연·촬영', '직원 복지', '매장 비치', '파손 처리', '행사 증정', '기타'];
 
@@ -79,15 +81,62 @@ export function SelfuseScreen() {
   const [entries, setEntries] = useState<SelfuseEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const [locations, setLocations] = useState<LocationRow[]>([]);
+  const [selectedLoc, setSelectedLoc] = useState('');
+  const [uploadMsg, setUploadMsg] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
 
   function load() {
-    getSelfuseEntries()
+    setLoading(true);
+    getSelfuseEntries(selectedLoc || undefined)
       .then(setEntries)
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    getLocations()
+      .then((locs) => setLocations(locs.filter((l) => (l.type === 'store' || l.type === 'popup') && l.active)))
+      .catch(() => {});
+  }, []);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [selectedLoc]);
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadMsg('업로드 중…');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      if (selectedLoc) fd.append('locationId', selectedLoc); // 선택 매장을 기본 매장으로
+      const res = await fetch('/api/selfuse/import', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? '업로드 실패');
+      const skip = json.skipped ? ` (제외 ${json.skipped}건${json.skippedSample?.length ? ': ' + json.skippedSample.join(', ') : ''})` : '';
+      setUploadMsg(`✅ ${json.count}건 등록 완료 — 사유 입력해 주세요${skip}`);
+      await load();
+    } catch (err) {
+      setUploadMsg(`❌ 오류: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  function handleDownload() {
+    const headers = ['일자', '품목코드', '품목명', '수량', '처리사유', '적요', '상태'];
+    const rows = entries.map((e) => [
+      e.entry_date,
+      e.sku,
+      e.product_name,
+      e.qty,
+      e.reason ?? '',
+      e.remark ?? '',
+      e.deducted ? '차감 완료' : '입력 필요',
+    ]);
+    downloadCsv('자가사용.csv', headers, rows);
+  }
 
   const needCount = entries.filter((e) => !e.deducted).length;
   const doneCount = entries.filter((e) => e.deducted).length;
@@ -99,9 +148,39 @@ export function SelfuseScreen() {
 
   return (
     <div>
-      <div className="lg-page-head">
+      <div className="lg-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <p className="lg-sub">포스 자가사용 내역 — 매달 5일까지 전월분 사유 입력</p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select
+            className="lg-select"
+            value={selectedLoc}
+            onChange={(e) => setSelectedLoc(e.target.value)}
+          >
+            <option value="">전체 매장</option>
+            {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+          <button
+            type="button"
+            className="lg-btn-ghost"
+            style={{ background: 'var(--lg-pine)', color: 'white', border: 'none', fontWeight: 600 }}
+            onClick={() => fileRef.current?.click()}
+          >포스 자가사용 리스트 업로드</button>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleUpload} />
+          <button
+            type="button"
+            className="lg-btn-ghost"
+            onClick={handleDownload}
+            disabled={entries.length === 0}
+            title="내보낼 데이터가 없습니다"
+          >⬇ 엑셀 다운로드</button>
+        </div>
       </div>
+
+      {uploadMsg && (
+        <div className="lg-card" style={{ background: '#FFF8E1', border: '1px solid #FFD54F', marginBottom: 12, padding: '10px 14px', fontSize: '.83rem' }}>
+          ℹ️ {uploadMsg}
+        </div>
+      )}
 
       {err && <p className="lg-err">{err}</p>}
 

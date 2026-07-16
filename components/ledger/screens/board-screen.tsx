@@ -15,8 +15,15 @@ import {
   type OrderInput,
 } from '@/lib/ledger/queries';
 import type { LocationRow } from '@/lib/ledger/types';
+import { downloadCsv } from '@/lib/ledger/csv';
 
 type ViewMode = 'action' | 'all';
+
+// v_order_board 는 vendor_name 을 항상 노출하진 않는다 — 있으면 쓰고 없으면 '미지정'.
+function vendorOf(row: OrderBoardRow): string {
+  const v = (row as OrderBoardRow & { vendor_name?: string | null }).vendor_name;
+  return v && v.trim() ? v : '미지정 업체';
+}
 
 function daysSinceAsof(asof: string | null): number | null {
   if (!asof) return null;
@@ -43,6 +50,8 @@ export function BoardScreen() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'noenv' | 'error'>('loading');
   const [errMsg, setErrMsg] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('action');
+  const [showDetail, setShowDetail] = useState(false);
+  const [groupByVendor, setGroupByVendor] = useState(false);
   const [searchQ, setSearchQ] = useState('');
   const [toast, setToast] = useState('');
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -114,6 +123,29 @@ export function BoardScreen() {
     }
   }
 
+  // 최종수량: 사용자가 입력한 값이 있으면 그 값, 없으면 제안수량
+  function finalQtyOf(row: OrderBoardRow): number {
+    const v = inputs.get(inputKey(row));
+    return v != null ? v : row.proposed_qty;
+  }
+
+  function handleDownload() {
+    const headers = ['품목코드', '품목명', '업체', '발주단위', '재고', '이동중', '주판매', '제안', '최종수량', '발주가능'];
+    const rows = filtered.map((r) => [
+      r.sku,
+      r.name,
+      vendorOf(r),
+      r.order_unit,
+      r.on_hand,
+      r.in_transit,
+      r.sales_7d,
+      r.dead_stock_6m ? 0 : r.proposed_qty,
+      r.dead_stock_6m ? 0 : finalQtyOf(r),
+      r.dead_stock_6m ? '불가' : '가능',
+    ]);
+    downloadCsv('발주판.csv', headers, rows);
+  }
+
   const storeLocations = locations.filter((l) => l.type === 'store' || l.type === 'popup');
 
   // 표시할 행 필터
@@ -142,6 +174,58 @@ export function BoardScreen() {
   const salesStale = asofDays != null && asofDays > 7;
 
   const isHq = role === 'hq' || role === 'admin';
+
+  // 업체별 묶기: filtered 를 업체명으로 그룹핑 (표시 순서는 업체명 정렬)
+  const vendorGroups: [string, OrderBoardRow[]][] = (() => {
+    const m = new Map<string, OrderBoardRow[]>();
+    for (const r of filtered) {
+      const v = vendorOf(r);
+      const arr = m.get(v);
+      if (arr) arr.push(r);
+      else m.set(v, [r]);
+    }
+    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0], 'ko'));
+  })();
+
+  // 한 행 렌더 — 평면 목록과 업체별 묶기에서 공용으로 쓴다.
+  function renderRow(row: OrderBoardRow) {
+    const key = inputKey(row);
+    const inputVal = inputs.get(key) ?? null;
+    const isDead = row.dead_stock_6m;
+    const cls = rowClass(row, inputVal, row.proposed_qty);
+    const isSaving = savingKey === key;
+
+    return (
+      <div key={key} className={`lg-board-row ${cls}`}>
+        <span className="lg-board-name">
+          {row.name}
+          {row.status === 'new' && <span className="lg-tag-new">신규</span>}
+        </span>
+        <span className="lg-col-sku lg-mono lg-dim">{row.sku}</span>
+        {showDetail && <span className="lg-dim" style={{ flex: '0 0 110px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '.78rem' }}>{vendorOf(row)}</span>}
+        {showDetail && <span className="lg-col-num lg-mono lg-dim">{row.order_unit}</span>}
+        <span className="lg-col-num lg-mono">{row.on_hand}</span>
+        <span className="lg-col-num lg-mono">{row.in_transit > 0 ? row.in_transit : '·'}</span>
+        <span className="lg-col-num lg-mono">{row.sales_7d}</span>
+        {showDetail && <span className="lg-col-num lg-mono lg-dim">{row.sales_30d}</span>}
+        <span className="lg-col-num lg-mono" style={{ fontWeight: 700 }}>
+          {isDead ? <s className="lg-dim">0</s> : row.proposed_qty || '·'}
+        </span>
+        <span className="lg-col-input">
+          <input
+            type="number"
+            min="0"
+            step={row.order_unit}
+            className={`lg-qty-input${isSaving ? ' saving' : ''}`}
+            placeholder={isDead ? '잠김' : String(row.proposed_qty || '')}
+            disabled={isDead || !round}
+            value={inputVal ?? ''}
+            onChange={(e) => handleQtyChange(row, e.target.value)}
+          />
+        </span>
+      </div>
+    );
+  }
 
   return (
     <section className="lg-screen">
@@ -207,6 +291,21 @@ export function BoardScreen() {
               <button type="button" className={viewMode === 'action' ? 'on' : ''} onClick={() => setViewMode('action')}>조치 필요만</button>
               <button type="button" className={viewMode === 'all' ? 'on' : ''} onClick={() => setViewMode('all')}>전체</button>
             </div>
+            <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', flexWrap: 'wrap' }}>
+              <button type="button" className="lg-btn-ghost" onClick={() => setShowDetail((v) => !v)}>
+                {showDetail ? '상세 열 접기' : '상세 열 펼치기'}
+              </button>
+              <button type="button" className="lg-btn-ghost" onClick={() => setGroupByVendor((v) => !v)}>
+                {groupByVendor ? '목록 보기' : '업체별 묶기'}
+              </button>
+              <button
+                type="button"
+                className="lg-btn-ghost"
+                onClick={handleDownload}
+                disabled={filtered.length === 0}
+                title={filtered.length === 0 ? '내보낼 데이터가 없습니다' : undefined}
+              >⬇ 엑셀 다운로드</button>
+            </div>
           </div>
 
           {/* 발주 테이블 */}
@@ -214,9 +313,12 @@ export function BoardScreen() {
             <div className="lg-board-head">
               <span>상품명</span>
               <span className="lg-col-sku">SKU</span>
+              {showDetail && <span className="lg-dim" style={{ flex: '0 0 110px' }}>업체</span>}
+              {showDetail && <span className="lg-col-num lg-dim">단위</span>}
               <span className="lg-col-num lg-dim">재고</span>
               <span className="lg-col-num lg-dim">이동중</span>
               <span className="lg-col-num lg-dim">주판매</span>
+              {showDetail && <span className="lg-col-num lg-dim">30일</span>}
               <span className="lg-col-num">제안</span>
               <span className="lg-col-input">최종수량</span>
             </div>
@@ -227,41 +329,16 @@ export function BoardScreen() {
               </div>
             )}
 
-            {filtered.map((row) => {
-              const key = inputKey(row);
-              const inputVal = inputs.get(key) ?? null;
-              const isDead = row.dead_stock_6m;
-              const cls = rowClass(row, inputVal, row.proposed_qty);
-              const isSaving = savingKey === key;
-
-              return (
-                <div key={key} className={`lg-board-row ${cls}`}>
-                  <span className="lg-board-name">
-                    {row.name}
-                    {row.status === 'new' && <span className="lg-tag-new">신규</span>}
-                  </span>
-                  <span className="lg-col-sku lg-mono lg-dim">{row.sku}</span>
-                  <span className="lg-col-num lg-mono">{row.on_hand}</span>
-                  <span className="lg-col-num lg-mono">{row.in_transit > 0 ? row.in_transit : '·'}</span>
-                  <span className="lg-col-num lg-mono">{row.sales_7d}</span>
-                  <span className="lg-col-num lg-mono" style={{ fontWeight: 700 }}>
-                    {isDead ? <s className="lg-dim">0</s> : row.proposed_qty || '·'}
-                  </span>
-                  <span className="lg-col-input">
-                    <input
-                      type="number"
-                      min="0"
-                      step={row.order_unit}
-                      className={`lg-qty-input${isSaving ? ' saving' : ''}`}
-                      placeholder={isDead ? '잠김' : String(row.proposed_qty || '')}
-                      disabled={isDead || !round}
-                      value={inputVal ?? ''}
-                      onChange={(e) => handleQtyChange(row, e.target.value)}
-                    />
-                  </span>
-                </div>
-              );
-            })}
+            {groupByVendor
+              ? vendorGroups.map(([vendor, rows]) => (
+                  <div key={vendor}>
+                    <div className="lg-board-row" style={{ background: 'var(--lg-surface)', fontWeight: 700, fontSize: '.78rem', color: 'var(--lg-muted)' }}>
+                      {vendor} · {rows.length}건
+                    </div>
+                    {rows.map((row) => renderRow(row))}
+                  </div>
+                ))
+              : filtered.map((row) => renderRow(row))}
           </div>
 
           {/* 범례 */}

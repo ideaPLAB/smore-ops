@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getInboundOrders, getLocations, receiveLine, SupabaseMissingError } from '@/lib/ledger/queries';
 import type { InboundLine, InboundOrder } from '@/lib/ledger/queries';
+import { downloadCsv } from '@/lib/ledger/csv';
 
 function DiffRow({ line, onSaved }: { line: InboundLine; onSaved: () => void }) {
   const [qty, setQty] = useState<string>(line.qty_received != null ? String(line.qty_received) : String(line.qty_ordered));
@@ -114,15 +115,45 @@ export function InboundScreen() {
 
   useEffect(() => { load(); }, []);
 
+  function handleDownload() {
+    const headers = ['전표번호', '출발지', '상태', '요청일', '품목코드', '품목명', '발주', '실입고', '검수'];
+    const rows: unknown[][] = [];
+    for (const o of orders) {
+      for (const l of o.lines) {
+        rows.push([
+          o.order_no,
+          o.from_location_name,
+          o.status,
+          o.requested_at.slice(0, 10),
+          l.sku,
+          l.product_name,
+          l.qty_ordered,
+          l.qty_received ?? '',
+          l.qty_received == null ? '대기' : (l.qty_received === l.qty_ordered ? '확인' : `조정 ${l.qty_received - l.qty_ordered > 0 ? '+' : ''}${l.qty_received - l.qty_ordered}`),
+        ]);
+      }
+    }
+    downloadCsv('입고처리.csv', headers, rows);
+  }
+
   const pending = orders.filter((o) => o.lines.some((l) => l.qty_received == null));
   const done = orders.filter((o) => o.lines.every((l) => l.qty_received != null));
 
   return (
     <section className="lg-screen">
-      <div className="lg-page-head">
+      <div className="lg-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <div>
           <p className="lg-sub">공급업체 입고 전표 · 매장 회수 — 전표별 확인 및 수량 조정</p>
         </div>
+        {status === 'ready' && (
+          <button
+            type="button"
+            className="lg-btn-ghost"
+            onClick={handleDownload}
+            disabled={orders.length === 0}
+            title={orders.length === 0 ? '내보낼 데이터가 없습니다' : undefined}
+          >⬇ 엑셀 다운로드</button>
+        )}
       </div>
 
       {status === 'loading' && <div className="lg-card lg-empty">불러오는 중…</div>}

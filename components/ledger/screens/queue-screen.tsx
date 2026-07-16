@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getWarehouseQueue, shipLine } from '@/lib/ledger/queries';
 import type { QueueItem } from '@/lib/ledger/queries';
+import { downloadCsv } from '@/lib/ledger/csv';
 
 // 전표별로 그룹핑
 function groupByOrder(items: QueueItem[]): Record<string, QueueItem[]> {
@@ -122,10 +123,34 @@ export function QueueScreen() {
   const totalOrders = orderNos.length;
   const waitingOrders = orderNos.filter((no) => grouped[no].some((i) => i.qty_shipped == null)).length;
 
+  function handleDownload() {
+    const headers = ['전표번호', '도착지', '품목코드', '바코드', '품목명', '발주', '출고', '상태'];
+    const rows = orderNos.flatMap((no) =>
+      grouped[no].map((i) => [
+        i.order_no,
+        i.to_store,
+        i.sku,
+        i.barcode ?? '',
+        i.name,
+        i.qty_ordered,
+        i.qty_shipped ?? '',
+        i.ship_status,
+      ]),
+    );
+    downloadCsv('출고대기열.csv', headers, rows);
+  }
+
   return (
     <div>
-      <div className="lg-page-head">
+      <div className="lg-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <p className="lg-sub">전표를 펼쳐 피킹 수량 입력 → 전표 단위 출고처리</p>
+        <button
+          type="button"
+          className="lg-btn-ghost"
+          onClick={handleDownload}
+          disabled={items.length === 0}
+          title={items.length === 0 ? '내보낼 데이터가 없습니다' : undefined}
+        >⬇ 엑셀 다운로드</button>
       </div>
 
       {err && <p className="lg-err">{err}</p>}

@@ -1,8 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getGachaMachines, getGachaChecks, runGachaCheck } from '@/lib/ledger/queries';
+import { getGachaMachines, getGachaChecks, runGachaCheck, getLocations } from '@/lib/ledger/queries';
 import type { GachaMachine, GachaSlot, GachaCheck } from '@/lib/ledger/queries';
+import type { LocationRow } from '@/lib/ledger/types';
+import { downloadCsv } from '@/lib/ledger/csv';
+
+// 방금 저장한 점검의 스냅샷 — undo(직전 작업 되돌리기) 스택용.
+// 서버 반영(gacha_check RPC)은 되돌리는 역RPC가 없어서, 되돌리기는 "직전 슬롯을 원래 잔량으로 되돌리는 교정 점검 화면"을 다시 여는 방식으로만 안전하게 처리한다.
+interface LastAction {
+  slot: GachaSlot;
+  prevQty: number; // 점검 직전 슬롯 잔량 (교정 시 되돌릴 값)
+}
 
 const SHRINKAGE_REASONS = ['뽑기 오류', '분실', '파손', '기타'];
 
@@ -10,12 +19,16 @@ function CheckModal({
   slot,
   onClose,
   onDone,
+  onSaved,
+  initialCounted,
 }: {
   slot: GachaSlot;
   onClose: () => void;
   onDone: () => void;
+  onSaved?: (a: LastAction) => void;
+  initialCounted?: string;
 }) {
-  const [counted, setCounted] = useState('');
+  const [counted, setCounted] = useState(initialCounted ?? '');
   const [refill, setRefill] = useState('0');
   const [shrinkage, setShrinkage] = useState('0');
   const [shrinkageReason, setShrinkageReason] = useState('');
@@ -40,6 +53,8 @@ function CheckModal({
         shrinkageReason || null,
         cash ? Number(cash) : null,
       );
+      // 점검 직전 잔량(slot.qty)을 스냅샷으로 남겨 되돌리기 스택에 쌓는다.
+      onSaved?.({ slot, prevQty: slot.qty });
       onDone();
       onClose();
     } catch (e: unknown) {
@@ -105,7 +120,7 @@ function CheckModal({
   );
 }
 
-function MachineCard({ machine, onRefresh }: { machine: GachaMachine; onRefresh: () => void }) {
+function MachineCard({ machine, onRefresh, onSaved }: { machine: GachaMachine; onRefresh: () => void; onSaved: (a: LastAction) => void }) {
   const [checkSlot, setCheckSlot] = useState<GachaSlot | null>(null);
   const lowCount = machine.slots.filter((s) => s.qty < 10).length;
   const totalQty = machine.slots.reduce((s, sl) => s + sl.qty, 0);
@@ -141,7 +156,7 @@ function MachineCard({ machine, onRefresh }: { machine: GachaMachine; onRefresh:
         </div>
       ))}
       {checkSlot && (
-        <CheckModal slot={checkSlot} onClose={() => setCheckSlot(null)} onDone={onRefresh} />
+        <CheckModal slot={checkSlot} onClose={() => setCheckSlot(null)} onDone={onRefresh} onSaved={onSaved} />
       )}
     </div>
   );
@@ -169,15 +184,59 @@ export function GachaScreen() {
   const [history, setHistory] = useState<GachaCheck[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
+  const [undoStack, setUndoStack] = useState<LastAction[]>([]);
+  const [correctSlot, setCorrectSlot] = useState<GachaSlot | null>(null);
+  const [correctInit, setCorrectInit] = useState('');
+  const [locations, setLocations] = useState<LocationRow[]>([]);
+  const [selectedLoc, setSelectedLoc] = useState('');
+
+  function handleSaved(a: LastAction) {
+    setUndoStack((s) => [...s, a]);
+  }
+
+  function handleUndo() {
+    if (undoStack.length === 0) return;
+    const last = undoStack[undoStack.length - 1];
+    setUndoStack((s) => s.slice(0, -1));
+    // 서버 이벤트(gacha_check RPC)는 역전 API가 없다. 억지로 롤백하지 않고,
+    // 직전 점검한 슬롯을 "점검 직전 잔량"으로 미리 채운 교정 점검 화면으로 다시 열어
+    // 사용자가 올바른 값으로 다시 저장하게 한다. (실사 수량 = 직전 잔량이면 판매추정 0)
+    // TODO(server): gacha_check 를 되돌리는 역RPC(gacha_check_undo)가 생기면 여기서 직접 롤백 호출.
+    setCorrectInit(String(last.prevQty));
+    setCorrectSlot(last.slot);
+  }
+
+  function handleDownload() {
+    // 화면이 보여주는 가챠머신/슬롯을 CSV로 내보낸다.
+    const headers = ['머신번호', '슬롯', '품목코드', '품목명', '판매가', '잔량'];
+    const rows = machines.flatMap((m) =>
+      m.slots.map((s) => [
+        m.bin_code,
+        s.slot_no,
+        s.sku ?? '',
+        s.product_name ?? '',
+        s.price,
+        s.qty,
+      ]),
+    );
+    downloadCsv('가챠머신.csv', headers, rows);
+  }
 
   function load() {
-    Promise.all([getGachaMachines(), getGachaChecks()])
+    Promise.all([getGachaMachines(selectedLoc || undefined), getGachaChecks()])
       .then(([m, h]) => { setMachines(m); setHistory(h); })
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
   }
 
-  useEffect(() => { load(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [selectedLoc]);
+
+  useEffect(() => {
+    getLocations()
+      .then((ls) => setLocations(ls.filter((l) => (l.type === 'store' || l.type === 'popup') && l.active)))
+      .catch(() => { /* 매장 목록 실패해도 화면은 전체로 동작 */ });
+  }, []);
 
   const totalSlots = machines.reduce((s, m) => s + m.slots.length, 0);
   const totalQty = machines.reduce((s, m) => s + m.slots.reduce((ss, sl) => ss + sl.qty, 0), 0);
@@ -186,8 +245,35 @@ export function GachaScreen() {
 
   return (
     <div>
-      <div className="lg-page-head">
-        <p className="lg-sub">머신 위치·번호·품목 — 보충과 점검을 기록</p>
+      <div className="lg-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <p className="lg-sub" style={{ margin: 0 }}>머신 위치·번호·품목 — 보충과 점검을 기록</p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+          <select
+            className="lg-select"
+            value={selectedLoc}
+            onChange={(e) => setSelectedLoc(e.target.value)}
+            style={{ width: 'auto' }}
+          >
+            <option value="">전체 매장</option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </select>
+          {undoStack.length > 0 && (
+            <button type="button" className="lg-btn-ghost" onClick={handleUndo}>
+              마지막 작업 되돌리기
+            </button>
+          )}
+          <button
+            type="button"
+            className="lg-btn-ghost"
+            onClick={handleDownload}
+            disabled={machines.length === 0}
+            title="내보낼 데이터가 없습니다"
+          >
+            ⬇ 엑셀 다운로드
+          </button>
+        </div>
       </div>
 
       {err && <p className="lg-err">{err}</p>}
@@ -222,7 +308,7 @@ export function GachaScreen() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(340px,1fr))', gap: 12, marginTop: 12 }}>
           {machines.map((m) => (
-            <MachineCard key={m.bin_id} machine={m} onRefresh={load} />
+            <MachineCard key={m.bin_id} machine={m} onRefresh={load} onSaved={handleSaved} />
           ))}
         </div>
       )}
@@ -234,6 +320,16 @@ export function GachaScreen() {
           </div>
           {history.map((c) => <HistoryRow key={c.id} c={c} />)}
         </div>
+      )}
+
+      {correctSlot && (
+        <CheckModal
+          slot={correctSlot}
+          initialCounted={correctInit}
+          onClose={() => setCorrectSlot(null)}
+          onDone={load}
+          onSaved={handleSaved}
+        />
       )}
 
       <p className="lg-hint">

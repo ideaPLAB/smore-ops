@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRole } from '../role-context';
 import { getFullStockBalance, getInTransit, getLocations, getProducts } from '@/lib/ledger/queries';
 import type { StockBalanceRow, InTransitRow, LocationRow, ProductRow } from '@/lib/ledger/types';
+import { downloadCsv } from '@/lib/ledger/csv';
 
 interface StockEntry {
   product_id: string;
@@ -76,6 +77,30 @@ export function StockScreen() {
     return entries.filter((e) => e.name.toLowerCase().includes(q) || e.sku.toLowerCase().includes(q));
   }, [entries, query]);
 
+  // 화면 테이블에 보이는 그대로 CSV 내보내기
+  const showTransit = role === 'hq' || role === 'admin';
+  function handleDownload() {
+    const headers = [
+      'SKU',
+      '상품명',
+      ...visibleLocations.map((l) => l.name),
+      ...(showTransit ? ['이동중'] : []),
+      'Total',
+    ];
+    const rows: unknown[][] = filtered.map((e) => {
+      const locTotal = visibleLocations.reduce((s, l) => s + (e.locations[l.id]?.on_hand ?? 0), 0);
+      const trTotal = Object.values(e.locations).reduce((s, v) => s + v.in_transit, 0);
+      return [
+        e.sku,
+        e.name,
+        ...visibleLocations.map((l) => e.locations[l.id]?.on_hand ?? 0),
+        ...(showTransit ? [trTotal] : []),
+        locTotal + trTotal,
+      ];
+    });
+    downloadCsv('재고현황.csv', headers, rows);
+  }
+
   // KPI
   const whIds = locations.filter((l) => l.type === 'warehouse').map((l) => l.id);
   const stIds = locations.filter((l) => l.type === 'store' || l.type === 'popup').map((l) => l.id);
@@ -85,8 +110,21 @@ export function StockScreen() {
 
   return (
     <div>
-      <div className="lg-page-head">
+      <div className="lg-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <p className="lg-sub">매장 / 창고 / 이동중 — 역할에 맞는 범위만</p>
+        {!loading && !err && (
+          <div style={{ flexShrink: 0 }}>
+            <button
+              type="button"
+              className="lg-btn-ghost"
+              onClick={handleDownload}
+              disabled={filtered.length === 0}
+              title={filtered.length === 0 ? '내보낼 데이터가 없습니다' : undefined}
+            >
+              ⬇ 엑셀 다운로드
+            </button>
+          </div>
+        )}
       </div>
 
       {err && <p className="lg-err">{err}</p>}
