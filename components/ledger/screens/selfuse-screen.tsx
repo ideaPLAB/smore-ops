@@ -198,7 +198,7 @@ export function SelfuseScreen() {
 
       {err && <p className="lg-err">{err}</p>}
 
-      <div className="ledger lg-kpis" style={{ padding: 0 }}>
+      <div className="lg-kpis" style={{ padding: 0 }}>
         <div className="lg-kpi">
           <div className="lg-kl" style={{ color: 'var(--lg-rust)', fontWeight: 700 }}>입력 필요</div>
           <div className="lg-kv lg-bad">{loading ? '…' : needCount}</div>

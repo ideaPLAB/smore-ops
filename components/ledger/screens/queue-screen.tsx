@@ -155,7 +155,7 @@ export function QueueScreen() {
 
       {err && <p className="lg-err">{err}</p>}
 
-      <div className="ledger lg-kpis" style={{ padding: 0 }}>
+      <div className="lg-kpis" style={{ padding: 0 }}>
         <div className="lg-kpi">
           <div className="lg-kl">전표 수</div>
           <div className="lg-kv">{loading ? '…' : totalOrders}</div>

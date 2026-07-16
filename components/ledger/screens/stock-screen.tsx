@@ -129,7 +129,7 @@ export function StockScreen() {
 
       {err && <p className="lg-err">{err}</p>}
 
-      <div className="ledger lg-kpis" style={{ padding: 0 }}>
+      <div className="lg-kpis" style={{ padding: 0 }}>
         <div className="lg-kpi">
           <div className="lg-kl">창고</div>
           <div className="lg-kv">{loading ? '…' : totalWh.toLocaleString()}</div>
@@ -148,7 +148,7 @@ export function StockScreen() {
         </div>
       </div>
 
-      <div className="ledger lg-toolbar" style={{ padding: 0, marginTop: 12 }}>
+      <div className="lg-toolbar" style={{ padding: 0, marginTop: 12 }}>
         <input
           className="lg-input lg-search"
           type="search"

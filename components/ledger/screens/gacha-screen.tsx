@@ -127,7 +127,7 @@ function MachineCard({ machine, onRefresh, onSaved }: { machine: GachaMachine; o
 
   return (
     <div className="lg-card" style={{ padding: 0, overflow: 'hidden' }}>
-      <div className="ledger lg-card-h" style={{ padding: '12px 16px' }}>
+      <div className="lg-card-h" style={{ padding: '12px 16px' }}>
         <span>{machine.bin_code}</span>
         {lowCount > 0 && (
           <span className="lg-badge" style={{ background: 'var(--lg-rust-soft)', color: 'var(--lg-rust)' }}>
@@ -137,7 +137,7 @@ function MachineCard({ machine, onRefresh, onSaved }: { machine: GachaMachine; o
         <span style={{ marginLeft: 'auto', fontSize: '.8rem', color: 'var(--lg-muted)' }}>총 {totalQty}개</span>
       </div>
       {machine.slots.map((s) => (
-        <div key={s.id} className="ledger lg-lg" style={{ padding: '8px 16px' }}>
+        <div key={s.id} className="lg-lg" style={{ padding: '8px 16px' }}>
           <span style={{ flex: '0 0 28px', color: 'var(--lg-muted)', fontSize: '.78rem', fontWeight: 700 }}>#{s.slot_no}</span>
           <span style={{ flex: 1 }}>{s.product_name ?? <em style={{ color: 'var(--lg-faint)' }}>미설정</em>}</span>
           {s.price > 0 && <span style={{ flex: '0 0 auto', color: 'var(--lg-muted)', fontSize: '.78rem' }}>{s.price.toLocaleString()}원</span>}
@@ -278,7 +278,7 @@ export function GachaScreen() {
 
       {err && <p className="lg-err">{err}</p>}
 
-      <div className="ledger lg-kpis" style={{ padding: 0 }}>
+      <div className="lg-kpis" style={{ padding: 0 }}>
         <div className="lg-kpi">
           <div className="lg-kl">머신</div>
           <div className="lg-kv">{loading ? '…' : machines.length}</div>
@@ -315,7 +315,7 @@ export function GachaScreen() {
 
       {history.length > 0 && (
         <div className="lg-card" style={{ marginTop: 14 }}>
-          <div className="ledger lg-card-h" style={{ padding: '12px 16px', borderBottom: '1px solid var(--lg-line-soft)' }}>
+          <div className="lg-card-h" style={{ padding: '12px 16px', borderBottom: '1px solid var(--lg-line-soft)' }}>
             가챠 이력 <span className="lg-sub">최근 50건</span>
           </div>
           {history.map((c) => <HistoryRow key={c.id} c={c} />)}
