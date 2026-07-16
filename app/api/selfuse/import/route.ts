@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 
 // 포스 자가사용 리스트 업로드 — 파일을 파싱해 self_use_entries에 사유 미입력(deducted=false) 상태로 적재.
@@ -14,7 +14,6 @@ function adminClient() {
 
 const norm = (v: unknown) => String(v ?? '').trim();
 
-// 헤더에서 여러 후보 이름 중 첫 매칭 인덱스
 function findCol(headers: string[], names: string[]): number {
   for (const n of names) {
     const i = headers.indexOf(n);
@@ -32,6 +31,26 @@ function toDateStr(v: unknown): string | null {
   const m = s.match(/(\d{4})[.\-/]\s*(\d{1,2})[.\-/]\s*(\d{1,2})/);
   if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
   return null;
+}
+
+// 코드 목록을 청크로 나눠 products를 조회해 map 채우기 (Supabase 기본 1000행 제한 회피).
+async function fetchProductMap(
+  client: SupabaseClient,
+  column: 'sku' | 'barcode',
+  codes: string[],
+): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const CHUNK = 300;
+  for (let i = 0; i < codes.length; i += CHUNK) {
+    const chunk = codes.slice(i, i + CHUNK);
+    const { data, error } = await client.from('products').select(`id,${column}`).in(column, chunk);
+    if (error) throw new Error(error.message ?? JSON.stringify(error));
+    (data ?? []).forEach((p: Record<string, unknown>) => {
+      const key = norm(p[column]);
+      if (key) map.set(key, p.id as string);
+    });
+  }
+  return map;
 }
 
 export async function POST(req: NextRequest) {
@@ -69,19 +88,33 @@ export async function POST(req: NextRequest) {
     const remarkIdx = findCol(headers, ['적요', '비고', '메모']);
     const storeIdx = findCol(headers, ['매장', '점포', '창고']);
 
-    const client = adminClient();
+    // 1차 파싱 — 파일 행을 먼저 모으고, 매칭에 필요한 코드만 수집
+    interface Parsed { skuV: string; bcV: string; qty: number; dateV: string | null; remark: string | null; storeName: string; }
+    const parsed: Parsed[] = [];
+    const skuSet = new Set<string>();
+    const bcSet = new Set<string>();
+    for (let i = headerIdx + 1; i < raw.length; i++) {
+      const r = raw[i] ?? [];
+      const skuV = skuIdx >= 0 ? norm(r[skuIdx]) : '';
+      const bcV = bcIdx >= 0 ? norm(r[bcIdx]) : '';
+      if (!skuV && !bcV) continue;
+      parsed.push({
+        skuV, bcV,
+        qty: Math.round(Number(qtyIdx >= 0 ? r[qtyIdx] : NaN)),
+        dateV: dateIdx >= 0 ? toDateStr(r[dateIdx]) : null,
+        remark: remarkIdx >= 0 ? (norm(r[remarkIdx]) || null) : null,
+        storeName: storeIdx >= 0 ? norm(r[storeIdx]) : '',
+      });
+      if (skuV) skuSet.add(skuV);
+      if (bcV) bcSet.add(bcV);
+    }
 
-    // 상품/매장 조회 (매칭용)
-    const [{ data: products }, { data: locations }] = await Promise.all([
-      client.from('products').select('id,sku,barcode'),
+    const client = adminClient();
+    const [bySku, byBc, { data: locations }] = await Promise.all([
+      fetchProductMap(client, 'sku', [...skuSet]),
+      fetchProductMap(client, 'barcode', [...bcSet]),
       client.from('locations').select('id,name'),
     ]);
-    const bySku = new Map<string, string>();
-    const byBc = new Map<string, string>();
-    (products ?? []).forEach((p: { id: string; sku: string; barcode: string | null }) => {
-      if (p.sku) bySku.set(norm(p.sku), p.id);
-      if (p.barcode) byBc.set(norm(p.barcode), p.id);
-    });
     const locByName = new Map<string, string>();
     (locations ?? []).forEach((l: { id: string; name: string }) => locByName.set(norm(l.name), l.id));
 
@@ -91,28 +124,19 @@ export async function POST(req: NextRequest) {
     }[] = [];
     const skipped: string[] = [];
 
-    for (let i = headerIdx + 1; i < raw.length; i++) {
-      const r = raw[i] ?? [];
-      const skuV = skuIdx >= 0 ? norm(r[skuIdx]) : '';
-      const bcV = bcIdx >= 0 ? norm(r[bcIdx]) : '';
-      if (!skuV && !bcV) continue; // 빈 행
-
-      const productId = (skuV && bySku.get(skuV)) || (bcV && byBc.get(bcV)) || null;
-      if (!productId) { skipped.push(`${skuV || bcV} — 미등록 상품`); continue; }
-
-      const qty = Math.round(Number(qtyIdx >= 0 ? r[qtyIdx] : NaN));
-      if (!qty || qty <= 0) { skipped.push(`${skuV || bcV} — 수량 오류`); continue; }
-
-      const storeName = storeIdx >= 0 ? norm(r[storeIdx]) : '';
-      const locationId = (storeName && locByName.get(storeName)) || defaultLoc || '';
-      if (!locationId) { skipped.push(`${skuV || bcV} — 매장 불명(파일에 매장 컬럼 넣거나 매장 선택)`); continue; }
+    for (const p of parsed) {
+      const productId = (p.skuV && bySku.get(p.skuV)) || (p.bcV && byBc.get(p.bcV)) || null;
+      if (!productId) { skipped.push(`${p.skuV || p.bcV} — 미등록 상품`); continue; }
+      if (!p.qty || p.qty <= 0) { skipped.push(`${p.skuV || p.bcV} — 수량 오류`); continue; }
+      const locationId = (p.storeName && locByName.get(p.storeName)) || defaultLoc || '';
+      if (!locationId) { skipped.push(`${p.skuV || p.bcV} — 매장 불명(파일에 매장 컬럼 넣거나 매장 선택)`); continue; }
 
       rows.push({
         location_id: locationId,
-        entry_date: (dateIdx >= 0 ? toDateStr(r[dateIdx]) : null) ?? today,
+        entry_date: p.dateV ?? today,
         product_id: productId,
-        qty,
-        remark: remarkIdx >= 0 ? (norm(r[remarkIdx]) || null) : null,
+        qty: p.qty,
+        remark: p.remark,
         deducted: false, // 사유는 화면에서 입력 → 그때 재고 차감
       });
     }
