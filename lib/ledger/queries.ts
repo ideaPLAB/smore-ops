@@ -562,12 +562,21 @@ export async function getRecentDispatchOrders(): Promise<DispatchOrder[]> {
 // ── 상품관리 ──────────────────────────────────────────────────────────────────
 
 export async function getAllProducts(): Promise<ProductRow[]> {
-  const { data, error } = await client()
-    .from('products')
-    .select('id,sku,product_code,barcode,name,vendor_name,supply_type,order_unit,lead_time_days,safety_stock,active')
-    .order('name');
-  if (error) throw error;
-  return (data ?? []) as ProductRow[];
+  // Supabase/PostgREST는 요청당 기본 1000행까지만 반환하므로 range로 페이지네이션해서 전부 조회
+  const PAGE = 1000;
+  const all: ProductRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await client()
+      .from('products')
+      .select('id,sku,product_code,barcode,name,vendor_name,supply_type,order_unit,lead_time_days,safety_stock,active')
+      .order('name')
+      .range(from, from + PAGE - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as ProductRow[];
+    all.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return all;
 }
 
 export async function updateProductOrderUnit(productId: string, orderUnit: number): Promise<void> {
