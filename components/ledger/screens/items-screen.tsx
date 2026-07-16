@@ -118,7 +118,8 @@ export function ItemsScreen() {
       setUploadMsg(`✅ ${json.count.toLocaleString()}개 품목 등록 완료!`);
       await load();
     } catch (err) {
-      setUploadMsg(`❌ 오류: ${(err as Error).message}`);
+      const msg = err instanceof Error ? err.message : typeof err === 'string' ? err : JSON.stringify(err);
+      setUploadMsg(`❌ 오류: ${msg}`);
     } finally {
       if (fileRef.current) fileRef.current.value = '';
     }
