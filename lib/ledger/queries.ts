@@ -115,6 +115,10 @@ export interface OrderBoardRow {
   sales_30d: number;
   dead_stock_6m: boolean;
   proposed_qty: number;
+  alt_code: string | null;      // 상품코드
+  barcode: string | null;       // 바코드
+  supply_type: string | null;   // 공급구분(사입/자사/위탁)
+  vendor_name: string | null;   // 업체명
 }
 
 export interface OrderRound {
@@ -142,7 +146,7 @@ export async function getSalesAsof(): Promise<string | null> {
 export async function getOrderBoard(locationId?: string): Promise<OrderBoardRow[]> {
   let q = client()
     .from('v_order_board')
-    .select('product_id,sku,name,order_unit,status,location_id,location_name,on_hand,in_transit,inventory_position,sales_7d,sales_30d,dead_stock_6m,proposed_qty')
+    .select('product_id,sku,name,order_unit,status,location_id,location_name,on_hand,in_transit,inventory_position,sales_7d,sales_30d,dead_stock_6m,proposed_qty,alt_code,barcode,supply_type,vendor_name')
     .order('name');
   if (locationId) q = q.eq('location_id', locationId);
   const { data, error } = await q;
@@ -179,12 +183,14 @@ export async function saveOrderInput(
   locationId: string,
   finalQty: number | null,
 ): Promise<void> {
-  const { error } = await client()
-    .from('order_inputs')
-    .update({ final_qty: finalQty, entered_at: new Date().toISOString() })
-    .eq('round_id', roundId)
-    .eq('product_id', productId)
-    .eq('location_id', locationId);
+  // 앱은 로그인 없이 anon → order_inputs 직접 UPDATE 는 권한 거부.
+  // security definer RPC(save_order_input, schema_patch_v0_13.sql)로 저장한다.
+  const { error } = await client().rpc('save_order_input', {
+    p_round: roundId,
+    p_product: productId,
+    p_location: locationId,
+    p_final: finalQty,
+  });
   if (error) throw error;
 }
 

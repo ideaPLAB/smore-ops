@@ -25,10 +25,20 @@ import { downloadCsv } from '@/lib/ledger/csv';
 
 type ViewMode = 'action' | 'all';
 
-// v_order_board 는 vendor_name 을 항상 노출하진 않는다 — 있으면 쓰고 없으면 '미지정'.
 function vendorOf(row: OrderBoardRow): string {
-  const v = (row as OrderBoardRow & { vendor_name?: string | null }).vendor_name;
-  return v && v.trim() ? v : '미지정 업체';
+  return row.vendor_name && row.vendor_name.trim() ? row.vendor_name : '미지정 업체';
+}
+
+// 상품 식별정보 서브라인: 품목코드 · 상품코드 · 바코드 · 공급구분 · 업체명
+function identityLine(row: OrderBoardRow): string {
+  const parts = [
+    `품목 ${row.sku}`,
+    row.alt_code ? `상품 ${row.alt_code}` : '',
+    row.barcode ? `바코드 ${row.barcode}` : '',
+    row.supply_type ? row.supply_type : '',
+    vendorOf(row),
+  ].filter(Boolean);
+  return parts.join(' · ');
 }
 
 function daysSinceAsof(asof: string | null): number | null {
@@ -257,10 +267,13 @@ export function BoardScreen() {
   }
 
   function handleDownload() {
-    const headers = ['품목코드', '품목명', '업체', '발주단위', '재고', '이동중', '주판매', '제안', '최종수량', '발주가능'];
+    const headers = ['품목코드', '상품코드', '바코드', '품목명', '공급구분', '업체', '발주단위', '재고', '이동중', '주판매', '제안', '최종수량', '발주가능'];
     const rows = filtered.map((r) => [
       r.sku,
+      r.alt_code ?? '',
+      r.barcode ?? '',
       r.name,
+      r.supply_type ?? '',
       vendorOf(r),
       r.order_unit,
       r.on_hand,
@@ -351,12 +364,15 @@ export function BoardScreen() {
 
     return (
       <div key={key} className={`lg-board-row ${cls}`}>
-        <span className="lg-board-name">
-          {row.name}
-          {row.status === 'new' && <span className="lg-tag-new">신규</span>}
+        <span className="lg-board-name" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {row.name}
+            {row.status === 'new' && <span className="lg-tag-new">신규</span>}
+          </span>
+          <span className="lg-dim" style={{ fontSize: '.68rem', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+            {identityLine(row)}
+          </span>
         </span>
-        <span className="lg-col-sku lg-mono lg-dim">{row.sku}</span>
-        {showDetail && <span className="lg-dim" style={{ flex: '0 0 110px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '.78rem' }}>{vendorOf(row)}</span>}
         {showDetail && <span className="lg-col-num lg-mono lg-dim">{row.order_unit}</span>}
         <span className="lg-col-num lg-mono">{row.on_hand}</span>
         <span className="lg-col-num lg-mono">{row.in_transit > 0 ? row.in_transit : '·'}</span>
@@ -465,9 +481,7 @@ export function BoardScreen() {
           {/* 발주 테이블 */}
           <div className="lg-card">
             <div className="lg-board-head">
-              <span>상품명</span>
-              <span className="lg-col-sku">SKU</span>
-              {showDetail && <span className="lg-dim" style={{ flex: '0 0 110px' }}>업체</span>}
+              <span style={{ flex: '1 1 auto' }}>상품명 · 식별정보</span>
               {showDetail && <span className="lg-col-num lg-dim">단위</span>}
               <span className="lg-col-num lg-dim">재고</span>
               <span className="lg-col-num lg-dim">이동중</span>
