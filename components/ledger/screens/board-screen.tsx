@@ -181,7 +181,7 @@ export function BoardScreen() {
 
           {/* 제안 공식 안내 */}
           <div className="lg-card" style={{ padding: '10px 16px', marginBottom: 12, fontSize: '.76rem', color: 'var(--lg-muted)', lineHeight: 1.7 }}>
-            <b style={{ color: 'var(--lg-pine)' }}>제안수량</b> = 주판매 × (배송기간＋1주) ＋ 안전재고 − (매장재고＋이동중) 을 발주단위로 올림.
+            <b style={{ color: 'var(--lg-ink)' }}>제안수량</b> = 주판매 × (배송기간＋1주) ＋ 안전재고 − (매장재고＋이동중) 을 발주단위로 올림.
             신규 상품은 유사상품 기준 · 6개월 미판매/발주불가 상품은 제안 0으로 잠김.
           </div>
 

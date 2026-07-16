@@ -64,46 +64,51 @@ function ShellInner() {
 
   return (
     <div className="ledger">
-      <header className="lg-topbar">
-        <div>
-          <p className="lg-eyebrow">Smore Ops · 재고원장</p>
+      <aside className="lg-sidebar">
+        <div className="lg-brand">
+          <p className="lg-eyebrow">Smore Ops</p>
+          <p className="lg-brand-sub">재고원장</p>
+        </div>
+        <nav className="lg-nav">
+          {tabs.map((t) => (
+            <button
+              key={t}
+              type="button"
+              className={`lg-navbtn${t === screen ? ' on' : ''}`}
+              onClick={() => setScreen(t)}
+            >
+              {SCREEN_NM[t]}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <div className="lg-content">
+        <header className="lg-topbar">
           <h1 className="lg-title">{SCREEN_NM[screen]}</h1>
-        </div>
-        <div className="lg-rolebox">
-          <span className="lg-loc">{locationName}</span>
-          <select
-            aria-label="역할 전환"
-            className="lg-roleselect"
-            value={role}
-            onChange={(e) => changeRole(e.target.value as typeof role)}
-          >
-            {ROLES.map((r) => (
-              <option key={r} value={r}>
-                {ROLE_NM[r]}
-              </option>
-            ))}
-          </select>
-        </div>
-      </header>
+          <div className="lg-rolebox">
+            <span className="lg-loc">{locationName}</span>
+            <select
+              aria-label="역할 전환"
+              className="lg-roleselect"
+              value={role}
+              onChange={(e) => changeRole(e.target.value as typeof role)}
+            >
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_NM[r]}
+                </option>
+              ))}
+            </select>
+          </div>
+        </header>
 
-      <nav className="lg-nav">
-        {tabs.map((t) => (
-          <button
-            key={t}
-            type="button"
-            className={`lg-navbtn${t === screen ? ' on' : ''}`}
-            onClick={() => setScreen(t)}
-          >
-            {SCREEN_NM[t]}
-          </button>
-        ))}
-      </nav>
+        <main className="lg-main">
+          <ScreenHost screen={screen} />
+        </main>
 
-      <main className="lg-main">
-        <ScreenHost screen={screen} />
-      </main>
-
-      <footer className="lg-foot">모든 전표는 히스토리에 적재됩니다 · 재고 잔액은 이벤트 합산이 원천</footer>
+        <footer className="lg-foot">모든 전표는 히스토리에 적재됩니다 · 재고 잔액은 이벤트 합산이 원천</footer>
+      </div>
     </div>
   );
 }
