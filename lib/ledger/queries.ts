@@ -558,3 +558,51 @@ export async function getRecentDispatchOrders(): Promise<DispatchOrder[]> {
     })),
   }));
 }
+
+// ── 상품관리 ──────────────────────────────────────────────────────────────────
+
+export async function getAllProducts(): Promise<ProductRow[]> {
+  const { data, error } = await client()
+    .from('products')
+    .select('id,sku,barcode,name,order_unit,lead_time_days,safety_stock,active')
+    .order('name');
+  if (error) throw error;
+  return (data ?? []) as ProductRow[];
+}
+
+export async function updateProductOrderUnit(productId: string, orderUnit: number): Promise<void> {
+  const { error } = await client()
+    .from('products')
+    .update({ order_unit: orderUnit })
+    .eq('id', productId);
+  if (error) throw error;
+}
+
+export async function updateProductActive(productId: string, active: boolean): Promise<void> {
+  const { error } = await client()
+    .from('products')
+    .update({ active })
+    .eq('id', productId);
+  if (error) throw error;
+}
+
+// ── 판매 데이터 업로드 이력 ───────────────────────────────────────────────────
+
+export interface SalesUploadStat {
+  sale_date: string;
+  row_count: number;
+}
+
+export async function getSalesUploadHistory(): Promise<SalesUploadStat[]> {
+  const { data, error } = await client()
+    .from('pos_sales_daily')
+    .select('sale_date')
+    .order('sale_date', { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  const map = new Map<string, number>();
+  (data ?? []).forEach((r: { sale_date: string }) => {
+    map.set(r.sale_date, (map.get(r.sale_date) ?? 0) + 1);
+  });
+  return Array.from(map.entries()).map(([sale_date, row_count]) => ({ sale_date, row_count }));
+}

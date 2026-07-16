@@ -11,7 +11,11 @@ import { ReceiptScreen } from './screens/receipt-screen';
 import { GachaScreen } from './screens/gacha-screen';
 import { SelfuseScreen } from './screens/selfuse-screen';
 import { QueueScreen } from './screens/queue-screen';
-import { Placeholder } from './screens/placeholder';
+import { InboundScreen } from './screens/inbound-screen';
+import { SalesScreen } from './screens/sales-screen';
+import { ItemsScreen } from './screens/items-screen';
+import { AccountsScreen } from './screens/accounts-screen';
+import { GuideScreen } from './screens/guide-screen';
 
 function ScreenHost({ screen }: { screen: ScreenId }) {
   switch (screen) {
@@ -31,8 +35,18 @@ function ScreenHost({ screen }: { screen: ScreenId }) {
       return <TransitScreen />;
     case 'dispatch':
       return <DispatchScreen />;
+    case 'inbound':
+      return <InboundScreen />;
+    case 'sales':
+      return <SalesScreen />;
+    case 'items':
+      return <ItemsScreen />;
+    case 'accounts':
+      return <AccountsScreen />;
+    case 'guide':
+      return <GuideScreen />;
     default:
-      return <Placeholder title={SCREEN_NM[screen]} />;
+      return null;
   }
 }
 
