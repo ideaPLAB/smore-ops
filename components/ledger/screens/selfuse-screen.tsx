@@ -103,6 +103,20 @@ export function SelfuseScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [selectedLoc]);
 
+  function handleUploadClick() {
+    // 전체 매장 상태면 파일에 매장 컬럼이 없을 때 전부 "매장 불명"으로 걸러짐 → 먼저 안내.
+    if (!selectedLoc) {
+      const go = window.confirm(
+        '매장이 "전체 매장"으로 선택돼 있어요.\n\n' +
+        '포스 파일에 [매장] 컬럼이 없으면 "매장 불명"으로 등록이 되지 않습니다.\n' +
+        '위 드롭다운에서 먼저 매장을 선택하는 걸 권장해요.\n\n' +
+        '그래도 진행할까요? (파일에 매장 컬럼이 있으면 그대로 진행 가능)',
+      );
+      if (!go) { setUploadMsg('업로드 취소됨 — 위 드롭다운에서 매장을 먼저 선택해 주세요.'); return; }
+    }
+    fileRef.current?.click();
+  }
+
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -163,7 +177,7 @@ export function SelfuseScreen() {
             type="button"
             className="lg-btn-ghost"
             style={{ background: 'var(--lg-pine)', color: 'white', border: 'none', fontWeight: 600 }}
-            onClick={() => fileRef.current?.click()}
+            onClick={handleUploadClick}
           >포스 자가사용 리스트 업로드</button>
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleUpload} />
           <button
