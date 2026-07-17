@@ -428,6 +428,26 @@ export function BoardScreen() {
 
       {status === 'ready' && (
         <>
+          {/* 확정 완료 박스 */}
+          {isHq && round && confirmation && (
+            <div className="lg-card" style={{ marginBottom: 12, background: '#E8F5E9', border: '1px solid #A5D6A7', padding: '14px 16px' }}>
+              <div style={{ fontWeight: 700, fontSize: '.9rem', marginBottom: 6 }}>
+                ✓ {round.title} 발주 확정 완료
+              </div>
+              <div style={{ fontSize: '.8rem', color: 'var(--lg-muted)', marginBottom: 12 }}>
+                {storeLocations.find((l) => l.id === confirmation.location_id)?.name} · {confirmation.snapshot.length}품목 · 전표 {confirmation.order_nos.join(', ') || '없음'}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button type="button" className="lg-btn-main" style={{ width: 'auto', height: 40, padding: '0 16px', marginTop: 0 }} onClick={handleDownloadRound}>
+                  이카운트 업로드용 파일 다운로드
+                </button>
+                <button type="button" className="lg-btn-ghost" style={{ height: 40, padding: '0 16px', fontSize: '.9rem' }} disabled={cancelling} onClick={handleCancelConfirm}>
+                  {cancelling ? '취소 중…' : '확정 취소 (전표 회수)'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* KPI */}
           <div className="lg-kpis">
             <div className="lg-kpi"><div className="lg-kl">입력 진행</div><div className="lg-kv">{inputCount} / {totalAction}</div></div>
@@ -536,26 +556,6 @@ export function BoardScreen() {
               {salesStale && (
                 <span className="lg-dim" style={{ fontSize: '.78rem' }}>판매 데이터 낡음 — 신뢰 불가</span>
               )}
-            </div>
-          )}
-
-          {/* 확정 완료 박스 */}
-          {isHq && round && confirmation && (
-            <div className="lg-card" style={{ marginTop: 12, background: '#E8F5E9', border: '1px solid #A5D6A7', padding: '14px 16px' }}>
-              <div style={{ fontWeight: 700, fontSize: '.9rem', marginBottom: 6 }}>
-                ✓ {round.title} 발주 확정 완료
-              </div>
-              <div style={{ fontSize: '.8rem', color: 'var(--lg-muted)', marginBottom: 12 }}>
-                {storeLocations.find((l) => l.id === confirmation.location_id)?.name} · {confirmation.snapshot.length}품목 · 전표 {confirmation.order_nos.join(', ') || '없음'}
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button type="button" className="lg-btn-main" style={{ width: 'auto', padding: '9px 16px' }} onClick={handleDownloadRound}>
-                  이카운트 업로드용 파일 다운로드
-                </button>
-                <button type="button" className="lg-btn-ghost" disabled={cancelling} onClick={handleCancelConfirm}>
-                  {cancelling ? '취소 중…' : '확정 취소 (전표 회수)'}
-                </button>
-              </div>
             </div>
           )}
 
