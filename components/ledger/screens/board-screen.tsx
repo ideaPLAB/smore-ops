@@ -139,7 +139,9 @@ function ConfirmReviewModal({
             </div>
             {vendorGroups.map(([vendor, ls]) => (
               <div key={`v-${vendor}`}>
-                <div style={{ padding: '6px 10px 2px', fontSize: '.74rem', fontWeight: 700, color: 'var(--lg-muted)' }}>{vendor}</div>
+                <div style={{ padding: '6px 10px 2px' }}>
+                  <span className="lg-vendor-pill" style={{ fontSize: '.7rem', padding: '2px 10px' }}>{vendor}</span>
+                </div>
                 {ls.map((l) => (
                   <div key={`v-${l.sku}`} style={{ display: 'flex', gap: 10, padding: '6px 10px', fontSize: '.82rem', borderBottom: '1px solid var(--lg-line-soft)' }}>
                     <span style={{ fontFamily: 'monospace', fontSize: '.74rem', color: 'var(--lg-muted)', flex: '0 0 90px' }}>{l.sku}</span>
@@ -499,9 +501,12 @@ export function BoardScreen() {
 
             {groupByVendor
               ? vendorGroups.map(([vendor, rows]) => (
-                  <div key={vendor}>
-                    <div className="lg-board-row" style={{ background: 'var(--lg-surface)', fontWeight: 700, fontSize: '.78rem', color: 'var(--lg-muted)' }}>
-                      {vendor} · {rows.length}건
+                  <div key={vendor} className="lg-vendor-group">
+                    <div className="lg-vendor-head">
+                      <span className="lg-vendor-pill">
+                        {vendor}
+                        <span className="lg-vp-cnt">· {rows.length}건</span>
+                      </span>
                     </div>
                     {rows.map((row) => renderRow(row))}
                   </div>
