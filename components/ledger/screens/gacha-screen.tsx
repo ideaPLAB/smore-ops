@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getGachaMachines, getGachaChecks, runGachaCheck, getLocations } from '@/lib/ledger/queries';
+import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations } from '@/lib/ledger/queries';
 import type { GachaMachine, GachaSlot, GachaCheck } from '@/lib/ledger/queries';
 import type { LocationRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
@@ -194,16 +194,22 @@ export function GachaScreen() {
     setUndoStack((s) => [...s, a]);
   }
 
-  function handleUndo() {
+  async function handleUndo() {
     if (undoStack.length === 0) return;
     const last = undoStack[undoStack.length - 1];
     setUndoStack((s) => s.slice(0, -1));
-    // 서버 이벤트(gacha_check RPC)는 역전 API가 없다. 억지로 롤백하지 않고,
-    // 직전 점검한 슬롯을 "점검 직전 잔량"으로 미리 채운 교정 점검 화면으로 다시 열어
-    // 사용자가 올바른 값으로 다시 저장하게 한다. (실사 수량 = 직전 잔량이면 판매추정 0)
-    // TODO(server): gacha_check 를 되돌리는 역RPC(gacha_check_undo)가 생기면 여기서 직접 롤백 호출.
-    setCorrectInit(String(last.prevQty));
-    setCorrectSlot(last.slot);
+    // 서버 롤백 RPC(gacha_check_undo, v0_14): 판매추정/감모/보충 역방향 이벤트 기록
+    // + 슬롯 잔량 복원 + 점검 이력 삭제. 가드(이후 점검·품목변경·잔량 변동·24h)에
+    // 걸려 거부되면 기존 방식대로 교정 점검 화면으로 폴백한다.
+    try {
+      await undoGachaCheck(last.slot.id);
+      setErr('');
+      load();
+    } catch (e: unknown) {
+      setErr(`되돌리기 실패: ${(e as Error).message} — 교정 점검으로 전환합니다`);
+      setCorrectInit(String(last.prevQty));
+      setCorrectSlot(last.slot);
+    }
   }
 
   function handleDownload() {

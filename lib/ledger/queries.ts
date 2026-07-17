@@ -593,6 +593,13 @@ export async function runGachaCheck(
   if (error) throw error;
 }
 
+// 가챠 점검 되돌리기 — 슬롯의 가장 최근 점검 1건을 서버에서 롤백
+// (역방향 이벤트 기록 + 슬롯 잔량 복원 + 점검 이력 삭제, schema_patch_v0_14.sql)
+export async function undoGachaCheck(slotId: string): Promise<void> {
+  const { error } = await client().rpc('gacha_check_undo', { p_slot: slotId });
+  if (error) throw error;
+}
+
 // ── 출고 대기열 ──────────────────────────────────────────────────────────────────
 
 export interface QueueItem {
