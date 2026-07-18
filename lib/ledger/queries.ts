@@ -440,6 +440,7 @@ export async function getInboundOrders(toLocationId?: string): Promise<InboundOr
     .select(
       `id,order_no,status,requested_at,
        from_loc:locations!transfer_orders_from_location_fkey(name),
+       origin_vendor:vendors!transfer_orders_origin_vendor_id_fkey(name),
        lines:transfer_order_lines(
          id,qty_ordered,qty_received,received_at,
          product:products(id,name,sku)
@@ -456,7 +457,8 @@ export async function getInboundOrders(toLocationId?: string): Promise<InboundOr
     order_no: o.order_no,
     status: o.status,
     requested_at: o.requested_at,
-    from_location_name: o.from_loc?.name ?? '—',
+    // 업체 직납(PO, from=NULL)은 출발지 대신 업체명을 표시
+    from_location_name: o.from_loc?.name ?? (o.origin_vendor?.name ? `업체 직납 · ${o.origin_vendor.name}` : '—'),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     lines: (o.lines ?? []).map((l: any) => ({
       id: l.id,

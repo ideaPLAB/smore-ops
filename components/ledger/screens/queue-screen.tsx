@@ -6,11 +6,11 @@ import type { QueueItem } from '@/lib/ledger/queries';
 import { downloadCsv } from '@/lib/ledger/csv';
 import { UploadPreviewModal } from '@/components/ledger/upload-preview-modal';
 
-// 전표별로 그룹핑
-function groupByOrder(items: QueueItem[]): Record<string, QueueItem[]> {
+// 매장별로 그룹핑 — 물류는 "어느 매장에 뭘 보내야 하는지"를 매장당 전표 하나로 본다
+function groupByStore(items: QueueItem[]): Record<string, QueueItem[]> {
   return items.reduce<Record<string, QueueItem[]>>((acc, item) => {
-    if (!acc[item.order_no]) acc[item.order_no] = [];
-    acc[item.order_no].push(item);
+    if (!acc[item.to_store]) acc[item.to_store] = [];
+    acc[item.to_store].push(item);
     return acc;
   }, {});
 }
@@ -44,6 +44,7 @@ function QueueLineRow({ item, onRefresh }: { item: QueueItem; onRefresh: () => v
     >
       <span style={{ fontFamily: 'monospace', fontSize: '.75rem', flex: '0 0 90px', color: 'var(--lg-muted)' }}>{item.sku}</span>
       <span style={{ flex: 1, minWidth: 120 }}>{item.name}</span>
+      <span style={{ fontFamily: 'monospace', fontSize: '.7rem', flex: '0 0 auto', color: 'var(--lg-faint)' }}>{item.order_no}</span>
       <span style={{ flex: '0 0 60px', textAlign: 'right', color: 'var(--lg-muted)', fontSize: '.82rem' }}>발주 {item.qty_ordered}</span>
       <input
         type="number"
@@ -73,17 +74,18 @@ function QueueLineRow({ item, onRefresh }: { item: QueueItem; onRefresh: () => v
   );
 }
 
-function OrderAccordion({ orderNo, items, onRefresh }: { orderNo: string; items: QueueItem[]; onRefresh: () => void }) {
+function StoreAccordion({ store, items, onRefresh }: { store: string; items: QueueItem[]; onRefresh: () => void }) {
   const [open, setOpen] = useState(true);
-  const aging = Math.floor((Date.now() - new Date(items[0].requested_at).getTime()) / 86400000);
-  const toStore = items[0].to_store;
+  // 경과일은 그룹에서 가장 오래된 요청 기준
+  const oldest = Math.min(...items.map((i) => new Date(i.requested_at).getTime()));
+  const aging = Math.floor((Date.now() - oldest) / 86400000);
   const doneCount = items.filter((i) => i.qty_shipped != null).length;
 
   return (
     <div className="lg-vch">
       <button type="button" className="lg-vch-h" onClick={() => setOpen((v) => !v)}>
-        <span className="lg-vch-no">{orderNo}</span>
-        <span className="lg-vch-to">{toStore}</span>
+        <span className="lg-vch-no">{store}</span>
+        <span className="lg-vch-to">{items.length}품목</span>
         {aging > 7 && <span className="lg-aging over">{aging}일 경과</span>}
         {aging <= 7 && aging > 0 && <span className="lg-aging">{aging}일 경과</span>}
         <span style={{ marginLeft: 'auto', color: 'var(--lg-muted)', fontSize: '.78rem' }}>
@@ -120,18 +122,18 @@ export function QueueScreen() {
 
   useEffect(() => { load(); }, []);
 
-  const grouped = groupByOrder(items);
-  const orderNos = Object.keys(grouped);
+  const grouped = groupByStore(items);
+  const storeNames = Object.keys(grouped).sort((a, b) => a.localeCompare(b, 'ko'));
 
-  const totalOrders = orderNos.length;
-  const waitingOrders = orderNos.filter((no) => grouped[no].some((i) => i.qty_shipped == null)).length;
+  const totalStores = storeNames.length;
+  const waitingStores = storeNames.filter((s) => grouped[s].some((i) => i.qty_shipped == null)).length;
 
   function handleDownload() {
-    const headers = ['전표번호', '도착지', '품목코드', '바코드', '품목명', '발주', '출고', '상태'];
-    const rows = orderNos.flatMap((no) =>
-      grouped[no].map((i) => [
-        i.order_no,
+    const headers = ['도착지', '전표번호', '품목코드', '바코드', '품목명', '발주', '출고', '상태'];
+    const rows = storeNames.flatMap((s) =>
+      grouped[s].map((i) => [
         i.to_store,
+        i.order_no,
         i.sku,
         i.barcode ?? '',
         i.name,
@@ -146,7 +148,7 @@ export function QueueScreen() {
   return (
     <div>
       <div className="lg-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-        <p className="lg-sub">전표를 펼쳐 피킹 수량 입력 → 전표 단위 출고처리</p>
+        <p className="lg-sub">매장별로 펼쳐 피킹 수량 입력 → 출고처리</p>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
           <button
             type="button"
@@ -174,23 +176,23 @@ export function QueueScreen() {
 
       <div className="lg-kpis" style={{ padding: 0 }}>
         <div className="lg-kpi">
-          <div className="lg-kl">전표 수</div>
-          <div className="lg-kv">{loading ? '…' : totalOrders}</div>
+          <div className="lg-kl">출고 대상 매장</div>
+          <div className="lg-kv">{loading ? '…' : totalStores}</div>
         </div>
         <div className="lg-kpi">
-          <div className="lg-kl">처리 대기</div>
-          <div className="lg-kv lg-warn">{loading ? '…' : waitingOrders}</div>
+          <div className="lg-kl">처리 대기 매장</div>
+          <div className="lg-kv lg-warn">{loading ? '…' : waitingStores}</div>
         </div>
       </div>
 
       {loading ? (
         <p className="lg-empty">불러오는 중…</p>
-      ) : orderNos.length === 0 ? (
+      ) : storeNames.length === 0 ? (
         <div className="lg-card lg-empty" style={{ marginTop: 12 }}>대기 중인 출고 전표 없음</div>
       ) : (
         <div style={{ marginTop: 12 }}>
-          {orderNos.map((no) => (
-            <OrderAccordion key={no} orderNo={no} items={grouped[no]} onRefresh={load} />
+          {storeNames.map((s) => (
+            <StoreAccordion key={s} store={s} items={grouped[s]} onRefresh={load} />
           ))}
         </div>
       )}
