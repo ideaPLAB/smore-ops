@@ -159,6 +159,9 @@ body { margin: 0; padding: 0; }
 .ledger .lg-vendor-head { padding: 10px 12px 6px; border-bottom: 1px solid var(--lg-line-soft); }
 .ledger .lg-vendor-pill { display: inline-block; background: var(--lg-ink); color: #fff; font-weight: 700; font-size: .78rem; padding: 4px 12px; border-radius: 999px; line-height: 1.5; }
 .ledger .lg-vendor-pill .lg-vp-cnt { font-weight: 600; opacity: .72; margin-left: 6px; }
+.ledger .lg-vendor-toggle { border: none; cursor: pointer; font-family: inherit; }
+.ledger .lg-vendor-toggle:hover { opacity: .85; }
+.ledger .lg-vp-chev { font-size: .68rem; margin-right: 5px; opacity: .8; }
 .ledger .lg-tag-new { font-size: .63rem; padding: 1px 6px; border-radius: 999px; background: var(--lg-surface); color: var(--lg-muted); font-weight: 500; white-space: nowrap; border: 1px solid var(--lg-line); }
 .ledger .lg-col-num  { flex: 0 0 54px; text-align: right; font-variant-numeric: tabular-nums; }
 /* 발주판 컬럼: 품목코드 · 바코드 · 업체명 */
