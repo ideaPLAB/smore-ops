@@ -266,7 +266,6 @@ export function BoardScreen() {
   const [viewMode, setViewMode] = useState<ViewMode>('action');
   const [showDetail, setShowDetail] = useState(false);
   const [groupByVendor, setGroupByVendor] = useState(false);
-  const [collapsedVendors, setCollapsedVendors] = useState<Set<string>>(new Set());
   const [searchQ, setSearchQ] = useState('');
   const [toast, setToast] = useState('');
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -472,15 +471,6 @@ export function BoardScreen() {
     }
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0], 'ko'));
   })();
-
-  // 업체 헤더 클릭 — 해당 업체 상품 접기/펼치기
-  function toggleVendor(vendor: string) {
-    setCollapsedVendors((prev) => {
-      const next = new Set(prev);
-      if (next.has(vendor)) next.delete(vendor); else next.add(vendor);
-      return next;
-    });
-  }
 
   // 한 행 렌더 — 평면 목록과 업체별 묶기에서 공용으로 쓴다.
   function renderRow(row: OrderBoardRow) {
@@ -699,21 +689,17 @@ export function BoardScreen() {
             )}
 
             {groupByVendor
-              ? vendorGroups.map(([vendor, rows]) => {
-                  const collapsed = collapsedVendors.has(vendor);
-                  return (
-                    <div key={vendor} className="lg-vendor-group">
-                      <div className="lg-vendor-head">
-                        <button type="button" className="lg-vendor-pill lg-vendor-toggle" onClick={() => toggleVendor(vendor)}>
-                          <span className="lg-vp-chev">{collapsed ? '▸' : '▾'}</span>
-                          {vendor}
-                          <span className="lg-vp-cnt">· {rows.length}건</span>
-                        </button>
-                      </div>
-                      {!collapsed && rows.map((row) => renderRow(row))}
+              ? vendorGroups.map(([vendor, rows]) => (
+                  <div key={vendor} className="lg-vendor-group">
+                    <div className="lg-vendor-head">
+                      <span className="lg-vendor-pill">
+                        {vendor}
+                        <span className="lg-vp-cnt">· {rows.length}건</span>
+                      </span>
                     </div>
-                  );
-                })
+                    {rows.map((row) => renderRow(row))}
+                  </div>
+                ))
               : filtered.map((row) => renderRow(row))}
           </div>
 
