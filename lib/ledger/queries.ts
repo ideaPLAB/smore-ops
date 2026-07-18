@@ -265,6 +265,85 @@ export async function cancelConfirmation(confirmationId: string): Promise<void> 
   if (error) throw error;
 }
 
+// ── 확정 전표 개별 취소·수정 (v0.17)
+export interface VoucherLine {
+  id: string;
+  product_id: string;
+  sku: string;
+  name: string;
+  qty_ordered: number;
+  qty_shipped: number | null;
+  qty_received: number | null;
+}
+
+export interface ConfirmationVoucher {
+  id: string;
+  order_no: string;
+  status: string;
+  is_vendor: boolean;       // true = 업체 구매발주(PO), false = 창고 출고요청
+  vendor_name: string | null;
+  lines: VoucherLine[];
+}
+
+// 확정에 속한 전표들 + 라인 조회 (수정/취소 UI용)
+export async function getConfirmationVouchers(orderNos: string[]): Promise<ConfirmationVoucher[]> {
+  if (orderNos.length === 0) return [];
+  const { data, error } = await client()
+    .from('transfer_orders')
+    .select('id,order_no,status,from_location,origin_vendor:origin_vendor_id(name),transfer_order_lines(id,product_id,qty_ordered,qty_shipped,qty_received,product:product_id(sku,name))')
+    .in('order_no', orderNos)
+    .neq('status', 'cancelled')
+    .order('order_no');
+  if (error) throw error;
+  type Raw = {
+    id: string; order_no: string; status: string; from_location: string | null;
+    origin_vendor: { name: string } | { name: string }[] | null;
+    transfer_order_lines: {
+      id: string; product_id: string; qty_ordered: number;
+      qty_shipped: number | null; qty_received: number | null;
+      product: { sku: string; name: string } | { sku: string; name: string }[] | null;
+    }[];
+  };
+  const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
+  return ((data ?? []) as Raw[]).map((t) => ({
+    id: t.id,
+    order_no: t.order_no,
+    status: t.status,
+    is_vendor: t.from_location == null,
+    vendor_name: one(t.origin_vendor)?.name ?? null,
+    lines: (t.transfer_order_lines ?? [])
+      .map((l) => ({
+        id: l.id,
+        product_id: l.product_id,
+        sku: one(l.product)?.sku ?? '',
+        name: one(l.product)?.name ?? '',
+        qty_ordered: l.qty_ordered,
+        qty_shipped: l.qty_shipped,
+        qty_received: l.qty_received,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko')),
+  }));
+}
+
+// 전표 1건만 취소 — 창고분은 재고 복원, 마지막 전표면 확정 자체 취소 처리.
+export async function cancelConfirmationOrder(confirmationId: string, orderNo: string): Promise<{ remaining_orders: string[] }> {
+  const { data, error } = await client().rpc('cancel_confirmation_order', {
+    p_confirmation: confirmationId, p_order_no: orderNo,
+  });
+  if (error) throw error;
+  return data as { remaining_orders: string[] };
+}
+
+// 전표 라인 수량 수정 (0 = 품목 제외). 창고분은 증감분 재고 보정.
+export async function updateVoucherLine(
+  confirmationId: string, orderNo: string, productId: string, qty: number,
+): Promise<void> {
+  const { error } = await client().rpc('update_voucher_line', {
+    p_confirmation: confirmationId, p_order_no: orderNo, p_product: productId, p_qty: qty,
+  });
+  if (error) throw error;
+}
+
 // ── 출고요청 전표 생성 — from은 창고(type='warehouse'), to는 매장
 export interface DispatchLine {
   product_id: string;

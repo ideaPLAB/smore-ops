@@ -13,12 +13,16 @@ import {
   confirmRoundOrders,
   getConfirmation,
   cancelConfirmation,
+  getConfirmationVouchers,
+  cancelConfirmationOrder,
+  updateVoucherLine,
   SupabaseMissingError,
   type OrderBoardRow,
   type OrderRound,
   type OrderInput,
   type SplitLine,
   type RoundConfirmation,
+  type ConfirmationVoucher,
 } from '@/lib/ledger/queries';
 import type { LocationRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
@@ -166,6 +170,93 @@ function ConfirmReviewModal({
   );
 }
 
+// 전표 수정 모달 — 라인 수량 수정(0 = 품목 제외), 저장 시 변경분만 RPC 호출
+function VoucherEditModal({
+  confirmationId, voucher, onClose, onChanged,
+}: {
+  confirmationId: string;
+  voucher: ConfirmationVoucher;
+  onClose: () => void;
+  onChanged: (msg: string) => void;
+}) {
+  const [qtys, setQtys] = useState<Map<string, string>>(
+    () => new Map(voucher.lines.map((l) => [l.product_id, String(l.qty_ordered)])),
+  );
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  const changed = voucher.lines.filter((l) => {
+    if (l.qty_shipped != null || l.qty_received != null) return false;
+    const v = qtys.get(l.product_id);
+    if (v == null || v === '') return false;
+    const n = parseInt(v, 10);
+    return !Number.isNaN(n) && n >= 0 && n !== l.qty_ordered;
+  });
+
+  async function save() {
+    setSaving(true); setErr('');
+    try {
+      for (const l of changed) {
+        const n = parseInt(qtys.get(l.product_id) ?? '', 10);
+        await updateVoucherLine(confirmationId, voucher.order_no, l.product_id, n);
+      }
+      onChanged(`✅ 전표 ${voucher.order_no} 수정 완료 — ${changed.length}품목 반영`);
+      onClose();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+      onClick={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}
+    >
+      <div style={{ background: 'white', borderRadius: 16, padding: 24, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: '1.05rem' }}>
+          전표 수정 · <span className="lg-mono">{voucher.order_no}</span>
+        </h2>
+        <p style={{ margin: '0 0 16px', color: 'var(--lg-muted)', fontSize: '.8rem' }}>
+          {voucher.is_vendor ? `업체 구매발주 · ${voucher.vendor_name ?? '미지정 업체'}` : '창고 출고요청'} —
+          {' '}0으로 저장하면 품목이 전표에서 제외됩니다.
+          {!voucher.is_vendor && ' 수량 변경분은 창고재고에 자동 반영됩니다.'}
+        </p>
+
+        {err && <p className="lg-err" style={{ fontSize: '.82rem' }}>{err}</p>}
+
+        {voucher.lines.map((l) => {
+          const started = l.qty_shipped != null || l.qty_received != null;
+          return (
+            <div key={l.product_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 4px', fontSize: '.84rem', borderBottom: '1px solid var(--lg-line-soft)' }}>
+              <span style={{ fontFamily: 'monospace', fontSize: '.74rem', color: 'var(--lg-muted)', flex: '0 0 90px' }}>{l.sku}</span>
+              <span style={{ flex: 1 }}>{l.name}</span>
+              {started && <span style={{ fontSize: '.7rem', color: 'var(--lg-rust)', flex: '0 0 auto' }}>출고·입고 진행 — 수정 불가</span>}
+              <input
+                type="number"
+                min="0"
+                className="lg-qty-input"
+                style={{ width: 80, flex: '0 0 auto' }}
+                disabled={started || saving}
+                value={qtys.get(l.product_id) ?? ''}
+                onChange={(e) => setQtys((prev) => new Map(prev).set(l.product_id, e.target.value))}
+              />
+            </div>
+          );
+        })}
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
+          <button type="button" className="lg-btn-ghost" onClick={onClose} disabled={saving}>닫기</button>
+          <button type="button" className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={saving || changed.length === 0} onClick={save}>
+            {saving ? '저장 중…' : `변경 저장 (${changed.length}품목)`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function BoardScreen() {
   const { role } = useRole();
 
@@ -184,6 +275,9 @@ export function BoardScreen() {
   const [toast, setToast] = useState('');
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<RoundConfirmation | null>(null);
+  const [vouchers, setVouchers] = useState<ConfirmationVoucher[]>([]);
+  const [editVoucher, setEditVoucher] = useState<ConfirmationVoucher | null>(null);
+  const [cancellingNo, setCancellingNo] = useState<string | null>(null);
   const [showReview, setShowReview] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
@@ -224,12 +318,16 @@ export function BoardScreen() {
       });
       setInputs(m);
 
-      // 이 매장×라운드의 활성 확정 조회
+      // 이 매장×라운드의 활성 확정 조회 (+ 전표별 수정/취소용 전표 목록)
       if (rnd && targetLoc) {
-        try { setConfirmation(await getConfirmation(rnd.id, targetLoc)); }
-        catch { setConfirmation(null); }
+        try {
+          const conf = await getConfirmation(rnd.id, targetLoc);
+          setConfirmation(conf);
+          setVouchers(conf ? await getConfirmationVouchers(conf.order_nos) : []);
+        } catch { setConfirmation(null); setVouchers([]); }
       } else {
         setConfirmation(null);
+        setVouchers([]);
       }
       setStatus('ready');
     } catch (e) {
@@ -302,7 +400,7 @@ export function BoardScreen() {
 
   async function handleCancelConfirm() {
     if (!confirmation) return;
-    if (!window.confirm('발주 확정을 취소하고 전표를 회수할까요? (출고·입고가 시작된 전표가 있으면 취소되지 않습니다)')) return;
+    if (!window.confirm('발주 확정 전체를 취소하고 전표를 모두 회수할까요? (출고·입고가 시작된 전표가 있으면 취소되지 않습니다)')) return;
     setCancelling(true);
     try {
       await cancelConfirmation(confirmation.id);
@@ -312,6 +410,22 @@ export function BoardScreen() {
       showToast(`취소 실패: ${(e as Error).message}`);
     } finally {
       setCancelling(false);
+    }
+  }
+
+  // 전표 1건만 취소 — 창고분은 창고재고 자동 복원
+  async function handleCancelOrder(orderNo: string) {
+    if (!confirmation) return;
+    if (!window.confirm(`전표 ${orderNo}만 취소할까요? (창고분은 창고재고가 자동 복원됩니다)`)) return;
+    setCancellingNo(orderNo);
+    try {
+      await cancelConfirmationOrder(confirmation.id, orderNo);
+      showToast(`전표 ${orderNo} 취소 완료`);
+      await loadData(locationId);
+    } catch (e) {
+      showToast(`취소 실패: ${(e as Error).message}`);
+    } finally {
+      setCancellingNo(null);
     }
   }
 
@@ -428,23 +542,66 @@ export function BoardScreen() {
 
       {status === 'ready' && (
         <>
-          {/* 확정 완료 박스 */}
+          {/* 확정 완료 박스 — 전표별 수정/취소 포함 */}
           {isHq && round && confirmation && (
             <div className="lg-card" style={{ marginBottom: 12, background: '#E8F5E9', border: '1px solid #A5D6A7', padding: '14px 16px' }}>
               <div style={{ fontWeight: 700, fontSize: '.9rem', marginBottom: 6 }}>
                 ✓ {round.title} 발주 확정 완료
               </div>
-              <div style={{ fontSize: '.8rem', color: 'var(--lg-muted)', marginBottom: 12 }}>
-                {storeLocations.find((l) => l.id === confirmation.location_id)?.name} · {confirmation.snapshot.length}품목 · 전표 {confirmation.order_nos.join(', ') || '없음'}
+              <div style={{ fontSize: '.8rem', color: 'var(--lg-muted)', marginBottom: 10 }}>
+                {storeLocations.find((l) => l.id === confirmation.location_id)?.name} · {confirmation.snapshot.length}품목 · 전표 {confirmation.order_nos.length}건
               </div>
+
+              {/* 전표별 행: 수정 · 전표 취소 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                {vouchers.map((v) => {
+                  const started = v.lines.some((l) => l.qty_shipped != null || l.qty_received != null);
+                  return (
+                    <div key={v.order_no} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'white', border: '1px solid var(--lg-line-soft)', borderRadius: 10, padding: '8px 12px', flexWrap: 'wrap' }}>
+                      <span className="lg-mono" style={{ fontWeight: 700, fontSize: '.8rem' }}>{v.order_no}</span>
+                      <span style={{ fontSize: '.76rem', color: 'var(--lg-muted)' }}>
+                        {v.is_vendor ? `업체분 · ${v.vendor_name ?? '미지정 업체'}` : '창고분 · 출고요청'} · {v.lines.length}품목
+                      </span>
+                      {started && <span style={{ fontSize: '.72rem', color: 'var(--lg-rust)' }}>출고·입고 진행 중</span>}
+                      <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+                        <button type="button" className="lg-btn-ghost" style={{ height: 32, padding: '0 12px', fontSize: '.8rem' }} disabled={started} onClick={() => setEditVoucher(v)}>
+                          수정
+                        </button>
+                        <button type="button" className="lg-btn-ghost" style={{ height: 32, padding: '0 12px', fontSize: '.8rem' }} disabled={started || cancellingNo === v.order_no} onClick={() => handleCancelOrder(v.order_no)}>
+                          {cancellingNo === v.order_no ? '취소 중…' : '전표 취소'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <button type="button" className="lg-btn-main" style={{ width: 'auto', height: 40, padding: '0 16px', marginTop: 0 }} onClick={handleDownloadRound}>
                   이카운트 업로드용 파일 다운로드
                 </button>
                 <button type="button" className="lg-btn-ghost" style={{ height: 40, padding: '0 16px', fontSize: '.9rem' }} disabled={cancelling} onClick={handleCancelConfirm}>
-                  {cancelling ? '취소 중…' : '확정 취소 (전표 회수)'}
+                  {cancelling ? '취소 중…' : '전체 확정 취소 (전표 회수)'}
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* 본사 전용: 확정 흐름 — 상단 배치 */}
+          {isHq && round && !confirmation && (
+            <div className="lg-hq-bar" style={{ marginBottom: 12 }}>
+              <button
+                type="button"
+                className="lg-btn-main"
+                disabled={salesStale}
+                title={salesStale ? '판매 데이터가 낡아 확정 불가' : ''}
+                onClick={() => setShowReview(true)}
+              >
+                입력 내용 최종 확인 →
+              </button>
+              {salesStale && (
+                <span className="lg-dim" style={{ fontSize: '.78rem' }}>판매 데이터 낡음 — 신뢰 불가</span>
+              )}
             </div>
           )}
 
@@ -541,24 +698,6 @@ export function BoardScreen() {
             <span><i className="lg-li-new" /> 신규 상품 — 유사상품 기준 적용</span>
           </div>
 
-          {/* 본사 전용: 확정 흐름 */}
-          {isHq && round && !confirmation && (
-            <div className="lg-hq-bar">
-              <button
-                type="button"
-                className="lg-btn-main"
-                disabled={salesStale}
-                title={salesStale ? '판매 데이터가 낡아 확정 불가' : ''}
-                onClick={() => setShowReview(true)}
-              >
-                입력 내용 최종 확인 →
-              </button>
-              {salesStale && (
-                <span className="lg-dim" style={{ fontSize: '.78rem' }}>판매 데이터 낡음 — 신뢰 불가</span>
-              )}
-            </div>
-          )}
-
           {!round && (
             <div className="lg-card lg-empty" style={{ marginTop: 12 }}>
               열린 발주 라운드가 없습니다. 본사에서 라운드를 개설해야 입력이 가능합니다.
@@ -568,6 +707,15 @@ export function BoardScreen() {
       )}
 
       {toast && <div className="lg-toast">{toast}</div>}
+
+      {editVoucher && confirmation && (
+        <VoucherEditModal
+          confirmationId={confirmation.id}
+          voucher={editVoucher}
+          onClose={() => setEditVoucher(null)}
+          onChanged={(msg) => { showToast(msg); loadData(locationId); }}
+        />
+      )}
 
       {showReview && round && (
         <ConfirmReviewModal
