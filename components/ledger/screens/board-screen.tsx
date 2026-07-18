@@ -33,16 +33,11 @@ function vendorOf(row: OrderBoardRow): string {
   return row.vendor_name && row.vendor_name.trim() ? row.vendor_name : '미지정 업체';
 }
 
-// 상품 식별정보 서브라인: 품목코드 · 상품코드 · 바코드 · 공급구분 · 업체명
-function identityLine(row: OrderBoardRow): string {
-  const parts = [
-    `품목 ${row.sku}`,
-    row.alt_code ? `상품 ${row.alt_code}` : '',
-    row.barcode ? `바코드 ${row.barcode}` : '',
-    row.supply_type ? row.supply_type : '',
-    vendorOf(row),
-  ].filter(Boolean);
-  return parts.join(' · ');
+// 상품명 아래 서브라인: 상품코드 · 공급구분 (품목코드/바코드/업체명은 별도 컬럼)
+function subLine(row: OrderBoardRow): string {
+  return [row.alt_code ? `상품 ${row.alt_code}` : '', row.supply_type ?? '']
+    .filter(Boolean)
+    .join(' · ');
 }
 
 function daysSinceAsof(asof: string | null): number | null {
@@ -367,20 +362,22 @@ export function BoardScreen() {
   }
 
   function handleDownload() {
-    const headers = ['품목코드', '상품코드', '바코드', '품목명', '공급구분', '업체', '발주단위', '재고', '이동중', '주판매', '제안', '최종수량', '발주가능'];
+    // 화면 컬럼 순서와 동일하게: 품목코드 > 상품명 > 바코드 > 업체명 > 단위 > 재고 > 이동중 > 주판매 > 30일 > 제안 > 최종수량
+    const headers = ['품목코드', '상품명', '바코드', '업체명', '단위', '재고', '이동중', '주판매', '30일', '제안', '최종수량', '상품코드', '공급구분', '발주가능'];
     const rows = filtered.map((r) => [
       r.sku,
-      r.alt_code ?? '',
-      r.barcode ?? '',
       r.name,
-      r.supply_type ?? '',
+      r.barcode ?? '',
       vendorOf(r),
       r.order_unit,
       r.on_hand,
       r.in_transit,
       r.sales_7d,
+      r.sales_30d,
       r.dead_stock_6m ? 0 : r.proposed_qty,
       r.dead_stock_6m ? 0 : finalQtyOf(r),
+      r.alt_code ?? '',
+      r.supply_type ?? '',
       r.dead_stock_6m ? '불가' : '가능',
     ]);
     downloadCsv('발주판.csv', headers, rows);
@@ -431,11 +428,15 @@ export function BoardScreen() {
 
   const storeLocations = locations.filter((l) => l.type === 'store' || l.type === 'popup');
 
-  // 표시할 행 필터
+  // 표시할 행 필터 — 상품명 · SKU · 업체명 · 바코드 검색
   const filtered = board.filter((r) => {
     if (searchQ.trim()) {
       const q = searchQ.toLowerCase();
-      if (!r.name.toLowerCase().includes(q) && !r.sku.toLowerCase().includes(q)) return false;
+      const hit = r.name.toLowerCase().includes(q)
+        || r.sku.toLowerCase().includes(q)
+        || vendorOf(r).toLowerCase().includes(q)
+        || (r.barcode ?? '').toLowerCase().includes(q);
+      if (!hit) return false;
     }
     if (viewMode === 'action') {
       // 조치 필요: 제안 > 0 이거나 미판매
@@ -444,9 +445,10 @@ export function BoardScreen() {
     return true;
   });
 
-  // KPI
-  const inputCount = Array.from(inputs.values()).filter((v) => v != null).length;
-  const totalAction = board.filter((r) => r.proposed_qty > 0 || r.dead_stock_6m).length;
+  // KPI — 입력 진행은 조치 필요 행 기준으로만 센다 (라운드에 남은 옛 입력값이 끼면 4/0처럼 보이는 문제 방지)
+  const actionRows = board.filter((r) => r.proposed_qty > 0 || r.dead_stock_6m);
+  const totalAction = actionRows.length;
+  const inputCount = actionRows.filter((r) => inputs.get(inputKey(r)) != null).length;
   const devCount = filtered.filter((r) => {
     const v = inputs.get(inputKey(r));
     return v != null && r.proposed_qty > 0 && Math.abs(v - r.proposed_qty) / r.proposed_qty >= 0.3;
@@ -478,17 +480,24 @@ export function BoardScreen() {
     const cls = rowClass(row, inputVal, row.proposed_qty);
     const isSaving = savingKey === key;
 
+    const sub = subLine(row);
+
     return (
       <div key={key} className={`lg-board-row ${cls}`}>
+        <span className="lg-bc-sku lg-mono lg-dim">{row.sku}</span>
         <span className="lg-board-name" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 1 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {row.name}
             {row.status === 'new' && <span className="lg-tag-new">신규</span>}
           </span>
-          <span className="lg-dim" style={{ fontSize: '.68rem', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
-            {identityLine(row)}
-          </span>
+          {sub && (
+            <span className="lg-dim" style={{ fontSize: '.68rem', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+              {sub}
+            </span>
+          )}
         </span>
+        <span className="lg-bc-bar lg-mono lg-dim">{row.barcode ?? '·'}</span>
+        <span className="lg-bc-vendor lg-dim" title={vendorOf(row)}>{vendorOf(row)}</span>
         {showDetail && <span className="lg-col-num lg-mono lg-dim">{row.order_unit}</span>}
         <span className="lg-col-num lg-mono">{row.on_hand}</span>
         <span className="lg-col-num lg-mono">{row.in_transit > 0 ? row.in_transit : '·'}</span>
@@ -624,7 +633,7 @@ export function BoardScreen() {
               <input
                 type="search"
                 className="lg-input"
-                placeholder="상품명 · SKU 검색"
+                placeholder="상품명 · SKU · 업체명 검색"
                 value={searchQ}
                 onChange={(e) => setSearchQ(e.target.value)}
               />
@@ -660,7 +669,10 @@ export function BoardScreen() {
           {/* 발주 테이블 */}
           <div className="lg-card">
             <div className="lg-board-head">
-              <span style={{ flex: '1 1 auto' }}>상품명 · 식별정보</span>
+              <span className="lg-bc-sku">품목코드</span>
+              <span style={{ flex: '1 1 auto' }}>상품명</span>
+              <span className="lg-bc-bar">바코드</span>
+              <span className="lg-bc-vendor">업체명</span>
               {showDetail && <span className="lg-col-num lg-dim">단위</span>}
               <span className="lg-col-num lg-dim">재고</span>
               <span className="lg-col-num lg-dim">이동중</span>
