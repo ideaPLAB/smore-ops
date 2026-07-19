@@ -15,7 +15,7 @@ const RoleCtx = createContext<RoleState | null>(null);
 
 export function RoleProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role>('hq');
-  const [locationName, setLocationName] = useState<string>('본사창고');
+  const [locationName, setLocationName] = useState<string>('광주');
   return (
     <RoleCtx.Provider value={{ role, setRole, locationName, setLocationName }}>
       {children}

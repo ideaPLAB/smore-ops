@@ -35,12 +35,8 @@ export function StockScreen() {
       .finally(() => setLoading(false));
   }, []);
 
-  // 역할별 표시 위치 필터
-  const visibleLocations = useMemo(() => {
-    if (role === 'warehouse') return locations.filter((l) => l.type === 'warehouse');
-    if (role === 'manager') return locations.filter((l) => l.type === 'store' || l.type === 'popup');
-    return locations;
-  }, [role, locations]);
+  // 재고현황은 물류·본사·매장 모두 전체 위치 열람 (2026-07-19 나츠 지시)
+  const visibleLocations = locations;
 
   const prodMap = useMemo(
     () => Object.fromEntries(products.map((p) => [p.id, p])),
