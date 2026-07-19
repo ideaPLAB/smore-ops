@@ -155,9 +155,9 @@ function ConfirmReviewModal({
           </>
         )}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end', alignItems: 'center' }}>
           <button type="button" className="lg-btn-ghost" style={{ padding: '10px 20px', fontSize: '.9rem' }} onClick={onClose} disabled={confirming}>취소</button>
-          <button type="button" className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={confirming || empty || lines == null} onClick={doConfirm}>
+          <button type="button" className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px', marginTop: 0 }} disabled={confirming || empty || lines == null} onClick={doConfirm}>
             {confirming ? '전표 생성 중…' : '발주 확정 · 전표 생성'}
           </button>
         </div>
