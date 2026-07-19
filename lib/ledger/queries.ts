@@ -194,6 +194,17 @@ export async function saveOrderInput(
   if (error) throw error;
 }
 
+export async function resetOrderInputs(roundId: string, locationId: string): Promise<number> {
+  // 확정 취소는 입력값을 복원하므로(v0_19), 입력 비우기는 이 RPC로 명시적으로 리셋한다.
+  // security definer RPC(reset_order_inputs, schema_patch_v0_22.sql).
+  const { data, error } = await client().rpc('reset_order_inputs', {
+    p_round: roundId,
+    p_location: locationId,
+  });
+  if (error) throw error;
+  return (data as number) ?? 0;
+}
+
 // ── 발주 확정 → 전표 생성 (창고분/업체분 분리) — schema_patch_v0_12.sql ──
 export interface SplitLine {
   sku: string;

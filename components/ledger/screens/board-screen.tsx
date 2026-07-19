@@ -9,6 +9,7 @@ import {
   getCurrentRound,
   getOrderInputs,
   saveOrderInput,
+  resetOrderInputs,
   previewRoundSplit,
   confirmRoundOrders,
   getConfirmation,
@@ -410,6 +411,24 @@ export function BoardScreen() {
     }
   }
 
+  // 입력수량 리셋 — 현재 매장×라운드의 최종수량을 전부 비움 (확정 취소는 입력을 복원하므로 별도 버튼)
+  const [resetting, setResetting] = useState(false);
+  async function handleResetInputs() {
+    if (!round || !locationId) return;
+    const locName = locations.find((l) => l.id === locationId)?.name ?? '이 매장';
+    if (!window.confirm(`${locName}의 입력한 최종수량을 전부 비울까요? (제안수량은 유지됩니다)`)) return;
+    setResetting(true);
+    try {
+      const n = await resetOrderInputs(round.id, locationId);
+      setInputs(new Map());
+      showToast(`입력수량 ${n}건 리셋 완료`);
+    } catch (e) {
+      showToast(`리셋 실패: ${(e as Error).message}`);
+    } finally {
+      setResetting(false);
+    }
+  }
+
   // 전표 1건만 취소 — 창고분은 창고재고 자동 복원
   async function handleCancelOrder(orderNo: string) {
     if (!confirmation) return;
@@ -656,6 +675,11 @@ export function BoardScreen() {
               <button type="button" className="lg-btn-ghost" onClick={() => setGroupByVendor((v) => !v)}>
                 {groupByVendor ? '목록 보기' : '업체별 묶기'}
               </button>
+              {round && !confirmation && (
+                <button type="button" className="lg-btn-ghost" disabled={resetting} onClick={handleResetInputs}>
+                  {resetting ? '리셋 중…' : '입력 리셋'}
+                </button>
+              )}
               <button
                 type="button"
                 className="lg-btn-ghost"
