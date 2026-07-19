@@ -24,6 +24,7 @@ export type ScreenId =
   | 'sales'
   | 'items'
   | 'accounts'
+  | 'wiki'
   | 'guide';
 
 export const SCREEN_NM: Record<ScreenId, string> = {
@@ -39,14 +40,15 @@ export const SCREEN_NM: Record<ScreenId, string> = {
   sales: '판매 데이터 업로드',
   items: '상품관리',
   accounts: '계정 관리',
+  wiki: 'WIKI',
   guide: '사용 안내',
 };
 
 // 역할별 접근 가능한 화면 (mockup ROLE_TABS 그대로).
 // admin은 마스터 → 전 화면.
 export const ROLE_TABS: Record<Role, ScreenId[]> = {
-  admin: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'sales', 'items', 'accounts', 'guide'],
-  hq: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'sales', 'items', 'accounts', 'guide'],
+  admin: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'sales', 'items', 'accounts', 'wiki', 'guide'],
+  hq: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'sales', 'items', 'accounts', 'wiki', 'guide'],
   manager: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'guide'],
   warehouse: ['queue', 'inbound', 'stock', 'guide'],
 };

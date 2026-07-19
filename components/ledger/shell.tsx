@@ -16,6 +16,7 @@ import { SalesScreen } from './screens/sales-screen';
 import { ItemsScreen } from './screens/items-screen';
 import { AccountsScreen } from './screens/accounts-screen';
 import { GuideScreen } from './screens/guide-screen';
+import { WikiScreen } from './screens/wiki-screen';
 
 function ScreenHost({ screen }: { screen: ScreenId }) {
   switch (screen) {
@@ -43,6 +44,8 @@ function ScreenHost({ screen }: { screen: ScreenId }) {
       return <ItemsScreen />;
     case 'accounts':
       return <AccountsScreen />;
+    case 'wiki':
+      return <WikiScreen />;
     case 'guide':
       return <GuideScreen />;
     default:
