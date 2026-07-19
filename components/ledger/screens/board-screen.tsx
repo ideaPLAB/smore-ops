@@ -156,7 +156,7 @@ function ConfirmReviewModal({
         )}
 
         <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end' }}>
-          <button type="button" className="lg-btn-ghost" onClick={onClose} disabled={confirming}>취소</button>
+          <button type="button" className="lg-btn-ghost" style={{ padding: '10px 20px', fontSize: '.9rem' }} onClick={onClose} disabled={confirming}>취소</button>
           <button type="button" className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={confirming || empty || lines == null} onClick={doConfirm}>
             {confirming ? '전표 생성 중…' : '발주 확정 · 전표 생성'}
           </button>
@@ -677,7 +677,7 @@ export function BoardScreen() {
               </button>
               {round && !confirmation && (
                 <button type="button" className="lg-btn-ghost" disabled={resetting} onClick={handleResetInputs}>
-                  {resetting ? '리셋 중…' : '입력 리셋'}
+                  {resetting ? '리셋 중…' : 'RESET'}
                 </button>
               )}
               <button
