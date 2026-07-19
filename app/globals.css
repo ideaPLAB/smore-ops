@@ -193,3 +193,13 @@ body { margin: 0; padding: 0; }
   .ledger .lg-f-row { flex-direction: column; }
   .ledger .lg-f-col { flex: 1 1 auto; }
 }
+
+/* ── WIKI 화면 (본사 전용 문서) ── */
+@keyframes wkFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes wkDot { 0% { left: -6px; opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } 100% { left: calc(100% - 2px); opacity: 0; } }
+.ledger .wk-step { animation: wkFadeUp .5s ease both; }
+.ledger .wk-conn { position: relative; flex: 1 1 34px; min-width: 34px; max-width: 72px; height: 2px; background: var(--lg-line); border-radius: 2px; overflow: visible; animation: wkFadeUp .5s ease both; }
+.ledger .wk-conn::after { content: ''; position: absolute; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--lg-pine); animation: wkDot 1.6s ease-in-out infinite; }
+.ledger .wk-conn .wk-conn-label { position: absolute; top: -22px; left: 50%; transform: translateX(-50%); font-size: .72rem; color: var(--lg-muted); white-space: nowrap; }
+.ledger .wk-sec-card { border: 1px solid var(--lg-line); border-radius: var(--lg-radius); background: var(--lg-bg); padding: 22px 26px; margin-bottom: 16px; animation: wkFadeUp .45s ease both; }
+.ledger .wk-callout { background: var(--lg-surface); border-left: 3px solid var(--lg-pine); border-radius: 8px; padding: 12px 16px; margin: 12px 0; font-size: .92rem; line-height: 1.75; }
