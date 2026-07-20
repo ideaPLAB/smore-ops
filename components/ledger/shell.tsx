@@ -70,7 +70,6 @@ function ShellInner() {
       <aside className="lg-sidebar">
         <div className="lg-brand">
           <p className="lg-eyebrow">Smore Ops</p>
-          <p className="lg-brand-sub">재고원장</p>
         </div>
         <nav className="lg-nav">
           {tabs.map((t) => (
@@ -90,7 +89,6 @@ function ShellInner() {
         <header className="lg-topbar">
           <h1 className="lg-title">{SCREEN_NM[screen]}</h1>
           <div className="lg-rolebox">
-            <span className="lg-loc">{locationName}</span>
             <select
               aria-label="역할 전환"
               className="lg-roleselect"
