@@ -40,6 +40,7 @@ body { margin: 0; padding: 0; }
 /* ── 상단 헤더 ──────────────────────────────────────────── */
 .lg-topbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 18px; }
 .lg-eyebrow { margin: 0; color: var(--lg-muted); font-size: 0.72rem; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
+.lg-logo { margin: 0; color: #000; font-size: 1.25rem; font-weight: 800; letter-spacing: -0.01em; }
 .lg-title { margin: 0; font-size: 1.5rem; font-weight: 600; color: var(--lg-ink); }
 .lg-rolebox { display: flex; align-items: center; gap: 10px; }
 .lg-loc { font-size: 0.8rem; color: var(--lg-muted); }

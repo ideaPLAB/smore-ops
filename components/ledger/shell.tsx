@@ -69,7 +69,7 @@ function ShellInner() {
     <div className="ledger">
       <aside className="lg-sidebar">
         <div className="lg-brand">
-          <p className="lg-eyebrow">Smore Ops</p>
+          <p className="lg-logo">+SMORE OPS.</p>
         </div>
         <nav className="lg-nav">
           {tabs.map((t) => (
