@@ -267,11 +267,11 @@ export function ReceiptScreen() {
   const [showNoOrder, setShowNoOrder] = useState(false);
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
-  const [filterLocation, setFilterLocation] = useState('');
+  const [filterStore, setFilterStore] = useState('');
   const [filterVendor, setFilterVendor] = useState('');
   const version = useRef(0);
 
-  const locationOptions = useMemo(() => [...new Set(orders.map((o) => o.from_location_name))].sort(), [orders]);
+  const storeOptions = useMemo(() => [...new Set(orders.map((o) => o.to_location_name).filter((n) => n && n !== '—'))].sort(), [orders]);
   const vendorOptions = useMemo(() => {
     const vendors = orders.map((o) => {
       const m = o.from_location_name.match(/업체 직납 · (.+)/);
@@ -282,17 +282,18 @@ export function ReceiptScreen() {
 
   const filtered = useMemo(() => {
     let list = orders;
-    if (filterLocation) list = list.filter((o) => o.from_location_name === filterLocation);
+    if (filterStore) list = list.filter((o) => o.to_location_name === filterStore);
     if (filterVendor) list = list.filter((o) => o.from_location_name.includes(filterVendor));
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter((o) =>
         o.order_no.toLowerCase().includes(q) ||
-        o.from_location_name.toLowerCase().includes(q)
+        o.from_location_name.toLowerCase().includes(q) ||
+        o.to_location_name.toLowerCase().includes(q)
       );
     }
     return list;
-  }, [orders, search, filterLocation, filterVendor]);
+  }, [orders, search, filterStore, filterVendor]);
 
   function load() {
     const v = ++version.current;
@@ -361,9 +362,9 @@ export function ReceiptScreen() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <select className="lg-select" style={{ flex: '0 0 130px' }} value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)}>
-            <option value="">전체 출발지</option>
-            {locationOptions.map((l) => <option key={l} value={l}>{l}</option>)}
+          <select className="lg-select" style={{ flex: '0 0 130px' }} value={filterStore} onChange={(e) => setFilterStore(e.target.value)}>
+            <option value="">전체 매장</option>
+            {storeOptions.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           {vendorOptions.length > 0 && (
             <select className="lg-select" style={{ flex: '0 0 130px' }} value={filterVendor} onChange={(e) => setFilterVendor(e.target.value)}>
@@ -371,8 +372,8 @@ export function ReceiptScreen() {
               {vendorOptions.map((v) => <option key={v} value={v}>{v}</option>)}
             </select>
           )}
-          {(search || filterLocation || filterVendor) && (
-            <button className="lg-btn-ghost" style={{ fontSize: '.78rem' }} onClick={() => { setSearch(''); setFilterLocation(''); setFilterVendor(''); }}>초기화</button>
+          {(search || filterStore || filterVendor) && (
+            <button className="lg-btn-ghost" style={{ fontSize: '.78rem' }} onClick={() => { setSearch(''); setFilterStore(''); setFilterVendor(''); }}>초기화</button>
           )}
         </div>
       )}
