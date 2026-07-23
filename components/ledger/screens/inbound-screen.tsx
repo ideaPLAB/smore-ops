@@ -44,9 +44,12 @@ function DiffRow({ line, onSaved }: { line: InboundLine; onSaved: () => void }) 
           onChange={(e) => { setSaved(false); setQty(e.target.value); }}
         />
       </span>
-      <span className="lg-col-num">
+      <span className="lg-col-num" style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
         {saved
-          ? <span className={`lg-tag ${isDiff ? 'lg-tag-dev' : ''}`}>{isDiff ? `조정 ${diff > 0 ? '+' : ''}${diff}` : '✓ 확인'}</span>
+          ? <>
+              <span className={`lg-tag ${isDiff ? 'lg-tag-dev' : ''}`}>{isDiff ? `조정 ${diff > 0 ? '+' : ''}${diff}` : '✓ 확인'}</span>
+              <button type="button" className="lg-btn-sm" style={{ fontSize: '.7rem', padding: '2px 6px' }} onClick={() => setSaved(false)}>수정</button>
+            </>
           : <button type="button" className="lg-btn-sm" disabled={saving} onClick={save}>{saving ? '…' : '입고 확인'}</button>}
       </span>
       {err && <span className="lg-col-num lg-err" style={{ fontSize: '.72rem' }}>{err}</span>}

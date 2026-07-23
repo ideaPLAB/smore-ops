@@ -457,8 +457,9 @@ export async function getInboundOrders(toLocationId?: string): Promise<InboundOr
          product:products(id,name,sku)
        )`
     )
-    .in('status', ['requested', 'partially_received'])
-    .order('requested_at', { ascending: false });
+    .in('status', ['requested', 'partially_received', 'received'])
+    .order('requested_at', { ascending: false })
+    .limit(100);
   if (toLocationId) q = q.eq('to_location', toLocationId);
   const { data, error } = await q;
   if (error) throw error;
