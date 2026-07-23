@@ -28,7 +28,7 @@ export async function getLocations(): Promise<LocationRow[]> {
 export async function getProducts(): Promise<ProductRow[]> {
   const { data, error } = await client()
     .from('products')
-    .select('id,sku,barcode,name,order_unit,lead_time_days,safety_stock,active')
+    .select('id,sku,product_code,barcode,name,order_unit,lead_time_days,safety_stock,active')
     .eq('active', true)
     .order('name');
   if (error) throw error;

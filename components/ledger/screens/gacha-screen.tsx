@@ -39,8 +39,8 @@ function ProductSearch({
           (p.barcode ?? '').toLowerCase().includes(q) ||
           (p.product_code ?? '').toLowerCase().includes(q)
         );
-      }).slice(0, 30)
-    : products.slice(0, 30);
+      }).slice(0, 100)
+    : products.slice(0, 50);
 
   function select(p: ProductRow) {
     onChange(p.id);
