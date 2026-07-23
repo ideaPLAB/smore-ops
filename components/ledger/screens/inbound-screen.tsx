@@ -57,24 +57,29 @@ function DiffRow({ line, onSaved }: { line: InboundLine; onSaved: () => void }) 
   );
 }
 
-function OrderCard({ order, onRefresh }: { order: InboundOrder; onRefresh: () => void }) {
+function OrderCard({ order, onRefresh, dimmed }: { order: InboundOrder; onRefresh: () => void; dimmed?: boolean }) {
   const [open, setOpen] = useState(false);
   const doneCount = order.lines.filter((l) => l.qty_received != null).length;
   const allDone = doneCount === order.lines.length;
 
   return (
-    <div className="lg-card" style={{ marginBottom: 10 }}>
+    <div className="lg-card" style={{
+      marginBottom: 8,
+      opacity: dimmed ? 0.6 : 1,
+      background: dimmed ? 'var(--lg-surface, #f8f8f6)' : undefined,
+      borderColor: dimmed ? 'var(--lg-line)' : undefined,
+    }}>
       <button
         type="button"
         className="lg-board-row"
         style={{ width: '100%', cursor: 'pointer', background: 'none', border: 'none', textAlign: 'left' }}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="lg-board-name" style={{ fontWeight: 700 }}>{order.order_no}</span>
+        <span className="lg-board-name" style={{ fontWeight: 700, color: dimmed ? 'var(--lg-muted)' : undefined }}>{order.order_no}</span>
         <span className="lg-col-sku lg-dim">{order.from_location_name}</span>
         <span className="lg-col-num lg-dim" style={{ fontSize: '.76rem' }}>{order.requested_at.slice(0, 10)}</span>
         <span className="lg-col-num">
-          <span className={`lg-tag ${allDone ? '' : 'lg-tag-new'}`}>{doneCount}/{order.lines.length} 확인</span>
+          <span className={`lg-tag ${allDone ? '' : 'lg-tag-new'}`}>{allDone ? '✓ 완료' : `${doneCount}/${order.lines.length} 확인`}</span>
         </span>
         <span className="lg-col-num" style={{ color: 'var(--lg-muted)' }}>{open ? '▲' : '▼'}</span>
       </button>
@@ -196,8 +201,8 @@ export function InboundScreen() {
 
           {done.length > 0 && (
             <>
-              <p style={{ fontSize: '.8rem', fontWeight: 600, color: 'var(--lg-muted)', margin: '16px 0 8px' }}>완료</p>
-              {done.map((o) => <OrderCard key={o.id} order={o} onRefresh={load} />)}
+              <p style={{ fontSize: '.8rem', fontWeight: 600, color: 'var(--lg-muted)', margin: '16px 0 8px' }}>완료 (수정하려면 전표 열고 [수정] 클릭)</p>
+              {done.map((o) => <OrderCard key={o.id} order={o} onRefresh={load} dimmed />)}
             </>
           )}
         </>
