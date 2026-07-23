@@ -113,6 +113,9 @@ body { margin: 0; padding: 0; }
 .ledger .lg-btn-main { margin-top: 14px; width: 100%; background: var(--lg-pine); color: white; border: none; border-radius: 999px; padding: 11px; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: filter 0.12s; }
 .ledger .lg-btn-main:hover:not(:disabled) { filter: brightness(1.06); }
 .ledger .lg-btn-main:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+.ledger .lg-btn-secondary { width: auto; padding: 10px 20px; margin-top: 0; background: var(--lg-surface); color: var(--lg-ink); border: 1px solid var(--lg-line); border-radius: 999px; font-size: 0.9rem; font-weight: 500; cursor: pointer; white-space: nowrap; transition: filter 0.12s; }
+.ledger .lg-btn-secondary:hover:not(:disabled) { filter: brightness(0.96); }
+.ledger .lg-btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .ledger .lg-line-list { margin-top: 12px; border: 1px solid var(--lg-line-soft); border-radius: var(--lg-radius-sm); overflow: hidden; min-height: 52px; }
 .ledger .lg-line-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--lg-line-soft); font-size: 0.86rem; color: var(--lg-ink); }

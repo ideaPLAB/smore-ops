@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { CSSProperties } from 'react';
 import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations, getProducts, changeGachaSlot, createGachaMachine } from '@/lib/ledger/queries';
 import type { GachaMachine, GachaSlot, GachaCheck } from '@/lib/ledger/queries';
 import type { LocationRow, ProductRow } from '@/lib/ledger/types';
@@ -86,11 +85,6 @@ function ProductSearch({
   );
 }
 
-const BTN_CANCEL: CSSProperties = {
-  width: 'auto', padding: '10px 20px', marginTop: 0,
-  background: 'var(--lg-surface)', color: 'var(--lg-ink)',
-  border: '1px solid var(--lg-line)',
-};
 
 function SlotChangeModal({
   slot,
@@ -144,8 +138,8 @@ function SlotChangeModal({
         </div>
         {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button className="lg-btn-main" style={BTN_CANCEL} onClick={onClose}>취소</button>
-          <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={saving} onClick={save}>
+          <button className="lg-btn-secondary" onClick={onClose}>취소</button>
+          <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px', marginTop: 0 }} disabled={saving} onClick={save}>
             {saving ? '저장 중…' : '변경'}
           </button>
         </div>
@@ -211,8 +205,8 @@ function MachineRegisterModal({
           슬롯은 빈 상태로 생성됩니다. 품목은 등록 후 슬롯별로 "품목변경"으로 설정하세요.
         </p>
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button className="lg-btn-main" style={BTN_CANCEL} onClick={onClose}>취소</button>
-          <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={saving} onClick={save}>
+          <button className="lg-btn-secondary" onClick={onClose}>취소</button>
+          <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px', marginTop: 0 }} disabled={saving} onClick={save}>
             {saving ? '등록 중…' : '등록'}
           </button>
         </div>
@@ -316,8 +310,8 @@ function CheckModal({
         {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
 
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button className="lg-btn-main" style={BTN_CANCEL} onClick={onClose}>취소</button>
-          <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={saving} onClick={save}>
+          <button className="lg-btn-secondary" onClick={onClose}>취소</button>
+          <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px', marginTop: 0 }} disabled={saving} onClick={save}>
             {saving ? '저장 중…' : '저장'}
           </button>
         </div>
