@@ -340,7 +340,7 @@ function MachineCard({ machine, onRefresh, onSaved, products }: { machine: Gacha
       {machine.slots.map((s) => (
         <div key={s.id} className="lg-lg" style={{ padding: '8px 16px' }}>
           <span style={{ flex: '0 0 28px', color: 'var(--lg-muted)', fontSize: '.78rem', fontWeight: 700 }}>#{s.slot_no}</span>
-          <span style={{ flex: 1 }}>{s.product_name ?? <em style={{ color: 'var(--lg-faint)' }}>미설정</em>}</span>
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{s.product_name ?? <em style={{ color: 'var(--lg-faint)' }}>미설정</em>}</span>
           {s.price > 0 && <span style={{ flex: '0 0 auto', color: 'var(--lg-muted)', fontSize: '.78rem' }}>{s.price.toLocaleString()}원</span>}
           <span
             style={{
