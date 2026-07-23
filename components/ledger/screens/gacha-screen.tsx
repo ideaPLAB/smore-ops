@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations, getProducts, changeGachaSlot, createGachaMachine } from '@/lib/ledger/queries';
 import type { GachaMachine, GachaSlot, GachaCheck } from '@/lib/ledger/queries';
 import type { LocationRow, ProductRow } from '@/lib/ledger/types';
@@ -14,6 +15,82 @@ interface LastAction {
 }
 
 const SHRINKAGE_REASONS = ['뽑기 오류', '분실', '파손', '기타'];
+
+function ProductSearch({
+  products,
+  value,
+  onChange,
+}: {
+  products: ProductRow[];
+  value: string;
+  onChange: (id: string) => void;
+}) {
+  const [query, setQuery] = useState(() => {
+    const found = products.find((p) => p.id === value);
+    return found ? `${found.name} (${found.sku})` : '';
+  });
+  const [open, setOpen] = useState(false);
+
+  const filtered = query.trim()
+    ? products.filter((p) => {
+        const q = query.toLowerCase();
+        return (
+          p.name.toLowerCase().includes(q) ||
+          p.sku.toLowerCase().includes(q) ||
+          (p.barcode ?? '').toLowerCase().includes(q) ||
+          (p.product_code ?? '').toLowerCase().includes(q)
+        );
+      }).slice(0, 30)
+    : products.slice(0, 30);
+
+  function select(p: ProductRow) {
+    onChange(p.id);
+    setQuery(`${p.name} (${p.sku})`);
+    setOpen(false);
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        className="lg-input"
+        placeholder="상품명·바코드·상품코드 검색"
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); onChange(''); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+      />
+      {open && filtered.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
+          background: 'white', border: '1px solid var(--lg-line)', borderRadius: 8,
+          maxHeight: 220, overflowY: 'auto', boxShadow: '0 4px 16px rgba(0,0,0,.12)',
+        }}>
+          {filtered.map((p) => (
+            <div
+              key={p.id}
+              onMouseDown={() => select(p)}
+              style={{
+                padding: '8px 12px', fontSize: '.82rem', cursor: 'pointer',
+                borderBottom: '1px solid var(--lg-line-soft)',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--lg-surface)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = ''; }}
+            >
+              <span style={{ fontWeight: 500 }}>{p.name}</span>
+              <span style={{ color: 'var(--lg-muted)', marginLeft: 6, fontSize: '.75rem' }}>{p.sku}{p.barcode ? ` · ${p.barcode}` : ''}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const BTN_CANCEL: CSSProperties = {
+  width: 'auto', padding: '10px 20px', marginTop: 0,
+  background: 'var(--lg-surface)', color: 'var(--lg-ink)',
+  border: '1px solid var(--lg-line)',
+};
 
 function SlotChangeModal({
   slot,
@@ -60,19 +137,14 @@ function SlotChangeModal({
           </p>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <label className="lg-label">품목</label>
-          <select className="lg-select" value={productId} onChange={(e) => setProductId(e.target.value)}>
-            <option value="">선택</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
-            ))}
-          </select>
+          <label className="lg-label">품목 검색</label>
+          <ProductSearch products={products} value={productId} onChange={setProductId} />
           <label className="lg-label">판매가 (원)</label>
           <input className="lg-input" type="number" min="0" step="100" value={price} onChange={(e) => setPrice(e.target.value)} />
         </div>
         {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button className="lg-btn-ghost" style={{ width: 'auto', padding: '10px 20px', fontSize: '0.9rem' }} onClick={onClose}>취소</button>
+          <button className="lg-btn-main" style={BTN_CANCEL} onClick={onClose}>취소</button>
           <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={saving} onClick={save}>
             {saving ? '저장 중…' : '변경'}
           </button>
@@ -139,7 +211,7 @@ function MachineRegisterModal({
           슬롯은 빈 상태로 생성됩니다. 품목은 등록 후 슬롯별로 "품목변경"으로 설정하세요.
         </p>
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button className="lg-btn-ghost" style={{ width: 'auto', padding: '10px 20px', fontSize: '0.9rem' }} onClick={onClose}>취소</button>
+          <button className="lg-btn-main" style={BTN_CANCEL} onClick={onClose}>취소</button>
           <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={saving} onClick={save}>
             {saving ? '등록 중…' : '등록'}
           </button>
@@ -244,7 +316,7 @@ function CheckModal({
         {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
 
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button className="lg-btn-ghost" style={{ width: 'auto', padding: '10px 20px', fontSize: '0.9rem' }} onClick={onClose}>취소</button>
+          <button className="lg-btn-main" style={BTN_CANCEL} onClick={onClose}>취소</button>
           <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={saving} onClick={save}>
             {saving ? '저장 중…' : '저장'}
           </button>
