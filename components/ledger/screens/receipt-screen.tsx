@@ -73,26 +73,36 @@ function DiffRow({ line, onSaved }: { line: InboundLine; onSaved: () => void }) 
           {saving ? '저장 중…' : '확인'}
         </button>
       ) : (
-        <span style={{ flex: '0 0 auto', color: 'var(--lg-pine)', fontSize: '.82rem', fontWeight: 700 }}>✓ 완료</span>
+        <span style={{ flex: '0 0 auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ color: 'var(--lg-pine)', fontSize: '.82rem', fontWeight: 700 }}>✓ 완료</span>
+          <button
+            className="lg-btn-ghost"
+            onClick={() => setSaved(false)}
+            style={{ fontSize: '.72rem', padding: '2px 8px' }}
+          >수정</button>
+        </span>
       )}
       {err && <span className="lg-err" style={{ flex: '1 0 100%', fontSize: '.78rem' }}>{err}</span>}
     </div>
   );
 }
 
-function OrderCard({ order, onRefresh }: { order: InboundOrder; onRefresh: () => void }) {
+function OrderCard({ order, onRefresh, dimmed }: { order: InboundOrder; onRefresh: () => void; dimmed?: boolean }) {
   const [open, setOpen] = useState(false);
   const doneCount = order.lines.filter((l) => l.qty_received != null).length;
+  const allDone = doneCount === order.lines.length;
   const aging = Math.floor((Date.now() - new Date(order.requested_at).getTime()) / 86400000);
 
   return (
-    <div className="lg-vch">
+    <div className="lg-vch" style={{ opacity: dimmed ? 0.55 : 1, background: dimmed ? 'var(--lg-surface, #f8f8f6)' : undefined }}>
       <button type="button" className="lg-vch-h" onClick={() => setOpen((v) => !v)}>
-        <span className="lg-vch-no">{order.order_no}</span>
+        <span className="lg-vch-no" style={{ color: dimmed ? 'var(--lg-muted)' : undefined }}>{order.order_no}</span>
         <span className="lg-vch-to">{order.from_location_name}</span>
         {aging > 7 && <span className="lg-aging over">{aging}일 경과</span>}
         {aging <= 7 && aging > 0 && <span className="lg-aging">{aging}일 경과</span>}
-        <span style={{ color: 'var(--lg-muted)', fontSize: '.78rem' }}>{doneCount}/{order.lines.length} 확인</span>
+        <span style={{ color: allDone ? 'var(--lg-pine)' : 'var(--lg-muted)', fontSize: '.78rem', fontWeight: allDone ? 700 : undefined }}>
+          {allDone ? '✓ 완료' : `${doneCount}/${order.lines.length} 확인`}
+        </span>
         <span className="lg-vch-caret">{open ? '▲' : '▼'}</span>
       </button>
       {open && (
@@ -317,13 +327,26 @@ export function ReceiptScreen() {
         <p className="lg-empty">불러오는 중…</p>
       ) : orders.length === 0 ? (
         <div className="lg-card lg-empty">도착 대기 중인 전표 없음</div>
-      ) : (
-        <div>
-          {orders.map((o) => (
-            <OrderCard key={o.id} order={o} onRefresh={load} />
-          ))}
-        </div>
-      )}
+      ) : (() => {
+        const pending = orders.filter((o) => o.lines.some((l) => l.qty_received == null));
+        const done = orders.filter((o) => o.lines.every((l) => l.qty_received != null));
+        return (
+          <div>
+            {pending.length > 0 && (
+              <>
+                <p style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--lg-muted)', margin: '0 0 6px' }}>확인 대기</p>
+                {pending.map((o) => <OrderCard key={o.id} order={o} onRefresh={load} />)}
+              </>
+            )}
+            {done.length > 0 && (
+              <>
+                <p style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--lg-muted)', margin: '16px 0 6px' }}>완료 — 수정하려면 전표 열고 [수정] 클릭</p>
+                {done.map((o) => <OrderCard key={o.id} order={o} onRefresh={load} dimmed />)}
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       <p className="lg-hint">수량을 발주보다 적게 넣으면 차이 사유 선택이 필수입니다. · 전표 없이 온 물건은 [수기 입고 등록]으로 바코드 조회 후 등록.</p>
 
