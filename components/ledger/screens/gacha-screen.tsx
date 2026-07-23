@@ -72,7 +72,7 @@ function SlotChangeModal({
         </div>
         {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button className="lg-btn-ghost" style={{ padding: '10px 20px' }} onClick={onClose}>취소</button>
+          <button className="lg-btn-ghost" style={{ width: 'auto', padding: '10px 20px', fontSize: '0.9rem' }} onClick={onClose}>취소</button>
           <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={saving} onClick={save}>
             {saving ? '저장 중…' : '변경'}
           </button>
@@ -139,7 +139,7 @@ function MachineRegisterModal({
           슬롯은 빈 상태로 생성됩니다. 품목은 등록 후 슬롯별로 "품목변경"으로 설정하세요.
         </p>
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button className="lg-btn-ghost" style={{ padding: '10px 20px' }} onClick={onClose}>취소</button>
+          <button className="lg-btn-ghost" style={{ width: 'auto', padding: '10px 20px', fontSize: '0.9rem' }} onClick={onClose}>취소</button>
           <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={saving} onClick={save}>
             {saving ? '등록 중…' : '등록'}
           </button>
@@ -244,7 +244,7 @@ function CheckModal({
         {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
 
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button className="lg-btn-ghost" style={{ padding: '10px 20px' }} onClick={onClose}>취소</button>
+          <button className="lg-btn-ghost" style={{ width: 'auto', padding: '10px 20px', fontSize: '0.9rem' }} onClick={onClose}>취소</button>
           <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={saving} onClick={save}>
             {saving ? '저장 중…' : '저장'}
           </button>
