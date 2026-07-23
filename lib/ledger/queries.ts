@@ -716,7 +716,7 @@ export async function createGachaMachine(
   const supabase = client();
   const { data: bin, error: binErr } = await supabase
     .from('bins')
-    .insert({ code: binCode, location_id: locationId, active: true })
+    .insert({ code: binCode, location_id: locationId, zone: '가챠', active: true })
     .select('id')
     .single();
   if (binErr) throw binErr;
