@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations, getProducts, changeGachaSlot, createGachaMachine } from '@/lib/ledger/queries';
+import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations, getAllProducts, changeGachaSlot, createGachaMachine } from '@/lib/ledger/queries';
 import type { GachaMachine, GachaSlot, GachaCheck } from '@/lib/ledger/queries';
 import type { LocationRow, ProductRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
@@ -451,7 +451,7 @@ export function GachaScreen() {
     getLocations()
       .then((ls) => setLocations(ls.filter((l) => (l.type === 'store' || l.type === 'popup') && l.active)))
       .catch(() => { /* 매장 목록 실패해도 화면은 전체로 동작 */ });
-    getProducts()
+    getAllProducts()
       .then(setProducts)
       .catch(() => { /* 품목 목록 실패해도 화면은 동작 */ });
   }, []);
