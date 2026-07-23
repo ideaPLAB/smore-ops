@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { getInboundOrders, receiveLine, getAllProducts, getLocations, manualReceive } from '@/lib/ledger/queries';
+import { useRole } from '../role-context';
 import type { InboundLine, InboundOrder } from '@/lib/ledger/queries';
 import type { ProductRow, LocationRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
@@ -94,7 +95,7 @@ function OrderCard({ order, onRefresh, dimmed }: { order: InboundOrder; onRefres
   const aging = Math.floor((Date.now() - new Date(order.requested_at).getTime()) / 86400000);
 
   return (
-    <div className="lg-vch" style={{ opacity: dimmed ? 0.55 : 1, background: dimmed ? 'var(--lg-surface, #f8f8f6)' : undefined }}>
+    <div className="lg-vch" style={{ opacity: dimmed ? 0.7 : 1, background: dimmed ? '#f0f0ed' : undefined, borderLeft: dimmed ? '3px solid #ccc' : undefined }}>
       <button type="button" className="lg-vch-h" onClick={() => setOpen((v) => !v)}>
         <span className="lg-vch-no" style={{ color: dimmed ? 'var(--lg-muted)' : undefined }}>{order.order_no}</span>
         <span className="lg-vch-to">{order.from_location_name}</span>
@@ -258,12 +259,40 @@ function NoOrderModal({ onClose, onDone }: { onClose: () => void; onDone: (msg: 
 }
 
 export function ReceiptScreen() {
+  const { role } = useRole();
+  const isHq = role === 'hq' || role === 'admin';
   const [orders, setOrders] = useState<InboundOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [showNoOrder, setShowNoOrder] = useState(false);
   const [notice, setNotice] = useState('');
+  const [search, setSearch] = useState('');
+  const [filterLocation, setFilterLocation] = useState('');
+  const [filterVendor, setFilterVendor] = useState('');
   const version = useRef(0);
+
+  const locationOptions = useMemo(() => [...new Set(orders.map((o) => o.from_location_name))].sort(), [orders]);
+  const vendorOptions = useMemo(() => {
+    const vendors = orders.map((o) => {
+      const m = o.from_location_name.match(/업체 직납 · (.+)/);
+      return m ? m[1] : null;
+    }).filter(Boolean) as string[];
+    return [...new Set(vendors)].sort();
+  }, [orders]);
+
+  const filtered = useMemo(() => {
+    let list = orders;
+    if (filterLocation) list = list.filter((o) => o.from_location_name === filterLocation);
+    if (filterVendor) list = list.filter((o) => o.from_location_name.includes(filterVendor));
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter((o) =>
+        o.order_no.toLowerCase().includes(q) ||
+        o.from_location_name.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [orders, search, filterLocation, filterVendor]);
 
   function load() {
     const v = ++version.current;
@@ -323,13 +352,38 @@ export function ReceiptScreen() {
 
       {err && <p className="lg-err">{err}</p>}
 
+      {isHq && !loading && orders.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          <input
+            className="lg-input"
+            style={{ flex: '1 1 180px', minWidth: 120 }}
+            placeholder="전표번호 · 업체명 · 매장명 검색"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <select className="lg-select" style={{ flex: '0 0 130px' }} value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)}>
+            <option value="">전체 출발지</option>
+            {locationOptions.map((l) => <option key={l} value={l}>{l}</option>)}
+          </select>
+          {vendorOptions.length > 0 && (
+            <select className="lg-select" style={{ flex: '0 0 130px' }} value={filterVendor} onChange={(e) => setFilterVendor(e.target.value)}>
+              <option value="">전체 업체</option>
+              {vendorOptions.map((v) => <option key={v} value={v}>{v}</option>)}
+            </select>
+          )}
+          {(search || filterLocation || filterVendor) && (
+            <button className="lg-btn-ghost" style={{ fontSize: '.78rem' }} onClick={() => { setSearch(''); setFilterLocation(''); setFilterVendor(''); }}>초기화</button>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <p className="lg-empty">불러오는 중…</p>
-      ) : orders.length === 0 ? (
-        <div className="lg-card lg-empty">도착 대기 중인 전표 없음</div>
+      ) : filtered.length === 0 ? (
+        <div className="lg-card lg-empty">{orders.length === 0 ? '도착 대기 중인 전표 없음' : '검색 결과 없음'}</div>
       ) : (() => {
-        const pending = orders.filter((o) => o.lines.some((l) => l.qty_received == null));
-        const done = orders.filter((o) => o.lines.every((l) => l.qty_received != null));
+        const pending = filtered.filter((o) => o.lines.some((l) => l.qty_received == null));
+        const done = filtered.filter((o) => o.lines.every((l) => l.qty_received != null));
         return (
           <div>
             {pending.length > 0 && (
