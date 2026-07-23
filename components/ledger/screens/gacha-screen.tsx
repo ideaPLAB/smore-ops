@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations } from '@/lib/ledger/queries';
+import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations, getProducts, changeGachaSlot, createGachaMachine } from '@/lib/ledger/queries';
 import type { GachaMachine, GachaSlot, GachaCheck } from '@/lib/ledger/queries';
-import type { LocationRow } from '@/lib/ledger/types';
+import type { LocationRow, ProductRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
 
 // 방금 저장한 점검의 스냅샷 — undo(직전 작업 되돌리기) 스택용.
@@ -14,6 +14,140 @@ interface LastAction {
 }
 
 const SHRINKAGE_REASONS = ['뽑기 오류', '분실', '파손', '기타'];
+
+function SlotChangeModal({
+  slot,
+  products,
+  onClose,
+  onDone,
+}: {
+  slot: GachaSlot;
+  products: ProductRow[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [productId, setProductId] = useState(slot.product_id ?? '');
+  const [price, setPrice] = useState(String(slot.price));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function save() {
+    if (!productId) { setErr('품목을 선택해 주세요'); return; }
+    const p = Number(price);
+    if (isNaN(p) || p < 0) { setErr('판매가를 확인해 주세요'); return; }
+    setSaving(true); setErr('');
+    try {
+      await changeGachaSlot(slot.id, productId, p);
+      onDone();
+      onClose();
+    } catch (e: unknown) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background: 'white', borderRadius: 16, padding: 24, width: '90%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: '1.05rem' }}>품목변경 — {slot.bin_code} #{slot.slot_no}</h2>
+        {slot.qty > 0 && (
+          <p style={{ margin: '0 0 14px', fontSize: '.8rem', color: 'var(--lg-hazel)' }}>
+            ⚠ 잔량 {slot.qty}개가 매장 재고로 자동 회수됩니다
+          </p>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <label className="lg-label">품목</label>
+          <select className="lg-select" value={productId} onChange={(e) => setProductId(e.target.value)}>
+            <option value="">선택</option>
+            {products.map((p) => (
+              <option key={p.id} value={p.id}>{p.name} ({p.sku})</option>
+            ))}
+          </select>
+          <label className="lg-label">판매가 (원)</label>
+          <input className="lg-input" type="number" min="0" step="100" value={price} onChange={(e) => setPrice(e.target.value)} />
+        </div>
+        {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+          <button className="lg-btn-ghost" onClick={onClose}>취소</button>
+          <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={saving} onClick={save}>
+            {saving ? '저장 중…' : '변경'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MachineRegisterModal({
+  locations,
+  onClose,
+  onDone,
+}: {
+  locations: LocationRow[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [locationId, setLocationId] = useState(locations[0]?.id ?? '');
+  const [binCode, setBinCode] = useState('');
+  const [slotCount, setSlotCount] = useState('6');
+  const [defaultPrice, setDefaultPrice] = useState('5000');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function save() {
+    if (!locationId) { setErr('매장을 선택해 주세요'); return; }
+    if (!binCode.trim()) { setErr('머신 번호(코드)를 입력해 주세요'); return; }
+    const cnt = Number(slotCount);
+    if (!cnt || cnt < 1 || cnt > 20) { setErr('슬롯 수는 1~20 사이'); return; }
+    setSaving(true); setErr('');
+    try {
+      await createGachaMachine(locationId, binCode.trim(), cnt, Number(defaultPrice));
+      onDone();
+      onClose();
+    } catch (e: unknown) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background: 'white', borderRadius: 16, padding: 24, width: '90%', maxWidth: 380, boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+        <h2 style={{ margin: '0 0 14px', fontSize: '1.05rem' }}>머신 등록</h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <label className="lg-label">매장</label>
+          <select className="lg-select" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+            {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+          <label className="lg-label">머신 코드 (예: 삼청-2층-1번기)</label>
+          <input className="lg-input" value={binCode} onChange={(e) => setBinCode(e.target.value)} placeholder="고유 식별 코드" />
+          <label className="lg-label">슬롯 수</label>
+          <input className="lg-input" type="number" min="1" max="20" value={slotCount} onChange={(e) => setSlotCount(e.target.value)} />
+          <label className="lg-label">기본 판매가 (원)</label>
+          <input className="lg-input" type="number" min="0" step="100" value={defaultPrice} onChange={(e) => setDefaultPrice(e.target.value)} />
+        </div>
+        {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
+        <p style={{ margin: '10px 0 0', fontSize: '.75rem', color: 'var(--lg-muted)' }}>
+          슬롯은 빈 상태로 생성됩니다. 품목은 등록 후 슬롯별로 "품목변경"으로 설정하세요.
+        </p>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+          <button className="lg-btn-ghost" onClick={onClose}>취소</button>
+          <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={saving} onClick={save}>
+            {saving ? '등록 중…' : '등록'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function CheckModal({
   slot,
@@ -120,8 +254,9 @@ function CheckModal({
   );
 }
 
-function MachineCard({ machine, onRefresh, onSaved }: { machine: GachaMachine; onRefresh: () => void; onSaved: (a: LastAction) => void }) {
+function MachineCard({ machine, onRefresh, onSaved, products }: { machine: GachaMachine; onRefresh: () => void; onSaved: (a: LastAction) => void; products: ProductRow[] }) {
   const [checkSlot, setCheckSlot] = useState<GachaSlot | null>(null);
+  const [changeSlot, setChangeSlot] = useState<GachaSlot | null>(null);
   const lowCount = machine.slots.filter((s) => s.qty < 10).length;
   const totalQty = machine.slots.reduce((s, sl) => s + sl.qty, 0);
 
@@ -150,6 +285,9 @@ function MachineCard({ machine, onRefresh, onSaved }: { machine: GachaMachine; o
           >
             {s.qty}
           </span>
+          <button className="lg-btn-ghost" style={{ flex: '0 0 auto', padding: '4px 10px', fontSize: '.78rem' }} onClick={() => setChangeSlot(s)}>
+            품목변경
+          </button>
           <button className="lg-btn-ghost" style={{ flex: '0 0 auto', padding: '4px 10px', fontSize: '.78rem' }} onClick={() => setCheckSlot(s)}>
             점검
           </button>
@@ -157,6 +295,9 @@ function MachineCard({ machine, onRefresh, onSaved }: { machine: GachaMachine; o
       ))}
       {checkSlot && (
         <CheckModal slot={checkSlot} onClose={() => setCheckSlot(null)} onDone={onRefresh} onSaved={onSaved} />
+      )}
+      {changeSlot && (
+        <SlotChangeModal slot={changeSlot} products={products} onClose={() => setChangeSlot(null)} onDone={onRefresh} />
       )}
     </div>
   );
@@ -189,6 +330,8 @@ export function GachaScreen() {
   const [correctInit, setCorrectInit] = useState('');
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [selectedLoc, setSelectedLoc] = useState('');
+  const [products, setProducts] = useState<ProductRow[]>([]);
+  const [showRegister, setShowRegister] = useState(false);
 
   function handleSaved(a: LastAction) {
     setUndoStack((s) => [...s, a]);
@@ -242,6 +385,9 @@ export function GachaScreen() {
     getLocations()
       .then((ls) => setLocations(ls.filter((l) => (l.type === 'store' || l.type === 'popup') && l.active)))
       .catch(() => { /* 매장 목록 실패해도 화면은 전체로 동작 */ });
+    getProducts()
+      .then(setProducts)
+      .catch(() => { /* 품목 목록 실패해도 화면은 동작 */ });
   }, []);
 
   const totalSlots = machines.reduce((s, m) => s + m.slots.length, 0);
@@ -265,6 +411,9 @@ export function GachaScreen() {
               <option key={l.id} value={l.id}>{l.name}</option>
             ))}
           </select>
+          <button type="button" className="lg-btn-ghost" onClick={() => setShowRegister(true)}>
+            + 머신 등록
+          </button>
           {undoStack.length > 0 && (
             <button type="button" className="lg-btn-ghost" onClick={handleUndo}>
               마지막 작업 되돌리기
@@ -314,7 +463,7 @@ export function GachaScreen() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(340px,1fr))', gap: 12, marginTop: 12 }}>
           {machines.map((m) => (
-            <MachineCard key={m.bin_id} machine={m} onRefresh={load} onSaved={handleSaved} />
+            <MachineCard key={m.bin_id} machine={m} onRefresh={load} onSaved={handleSaved} products={products} />
           ))}
         </div>
       )}
@@ -326,6 +475,10 @@ export function GachaScreen() {
           </div>
           {history.map((c) => <HistoryRow key={c.id} c={c} />)}
         </div>
+      )}
+
+      {showRegister && (
+        <MachineRegisterModal locations={locations} onClose={() => setShowRegister(false)} onDone={load} />
       )}
 
       {correctSlot && (

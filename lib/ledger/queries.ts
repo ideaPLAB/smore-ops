@@ -696,6 +696,40 @@ export async function undoGachaCheck(slotId: string): Promise<void> {
   if (error) throw error;
 }
 
+// 슬롯 품목·가격 변경 (gacha_change RPC — 잔량이 있으면 매장 재고로 자동 회수)
+export async function changeGachaSlot(slotId: string, productId: string, price: number): Promise<void> {
+  const { error } = await client().rpc('gacha_change', {
+    p_slot: slotId,
+    p_product: productId,
+    p_price: price,
+  });
+  if (error) throw error;
+}
+
+// 새 머신(bin) + 슬롯 일괄 등록
+export async function createGachaMachine(
+  locationId: string,
+  binCode: string,
+  slotCount: number,
+  defaultPrice: number,
+): Promise<void> {
+  const supabase = client();
+  const { data: bin, error: binErr } = await supabase
+    .from('bins')
+    .insert({ code: binCode, location_id: locationId, active: true })
+    .select('id')
+    .single();
+  if (binErr) throw binErr;
+  const slots = Array.from({ length: slotCount }, (_, i) => ({
+    bin_id: bin.id,
+    slot_no: i + 1,
+    price: defaultPrice,
+    qty: 0,
+  }));
+  const { error: slotsErr } = await supabase.from('gacha_slots').insert(slots);
+  if (slotsErr) throw slotsErr;
+}
+
 // ── 출고 대기열 ──────────────────────────────────────────────────────────────────
 
 export interface QueueItem {
