@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { getInboundOrders, getLocations, receiveLine, SupabaseMissingError } from '@/lib/ledger/queries';
+import { getInboundOrders, receiveLine, SupabaseMissingError } from '@/lib/ledger/queries';
 import type { InboundLine, InboundOrder } from '@/lib/ledger/queries';
 import { downloadCsv } from '@/lib/ledger/csv';
 import { UploadPreviewModal } from '@/components/ledger/upload-preview-modal';
@@ -101,16 +101,12 @@ export function InboundScreen() {
   const [orders, setOrders] = useState<InboundOrder[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'noenv' | 'error'>('loading');
   const [errMsg, setErrMsg] = useState('');
-  const [warehouseId, setWarehouseId] = useState<string | undefined>();
   const [showUpload, setShowUpload] = useState(false);
   const [notice, setNotice] = useState('');
 
   async function load() {
     try {
-      const locs = await getLocations();
-      const wh = locs.find((l) => l.type === 'warehouse' && l.active);
-      setWarehouseId(wh?.id);
-      const data = await getInboundOrders(wh?.id);
+      const data = await getInboundOrders();
       setOrders(data);
       setStatus('ready');
     } catch (e) {
