@@ -228,7 +228,6 @@ function MachineCard({ machine, onRefresh, onSaved, products, slotHistories }: {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [err, setErr] = useState('');
 
-  const lowCount = machine.slots.filter((s) => s.qty < 10).length;
   const totalQty = machine.slots.reduce((s, sl) => s + sl.qty, 0);
 
   // 이 머신의 모든 슬롯 품목변경 이력 (최신순)
@@ -268,11 +267,6 @@ function MachineCard({ machine, onRefresh, onSaved, products, slotHistories }: {
     <div className="lg-card" style={{ padding: 0, overflow: 'hidden' }}>
       <div className="lg-card-h" style={{ padding: '12px 16px' }}>
         <span>{machine.bin_code}</span>
-        {lowCount > 0 && (
-          <span className="lg-badge" style={{ background: 'var(--lg-rust-soft)', color: 'var(--lg-rust)' }}>
-            잔량 부족 {lowCount}
-          </span>
-        )}
         <span style={{ marginLeft: 'auto', fontSize: '.8rem', color: 'var(--lg-muted)' }}>총 {totalQty}개</span>
       </div>
 
@@ -436,7 +430,7 @@ export function GachaScreen() {
   }
 
   function handleDownload() {
-    const headers = ['머신번호', '슬롯', '품목코드', '품목명', '판매가', '잔량'];
+    const headers = ['머신번호', '슬롯', '품목코드', '품목명', '판매가', '총 보충수량'];
     const rows = machines.flatMap((m) =>
       m.slots.map((s) => [
         m.bin_code,
@@ -480,7 +474,6 @@ export function GachaScreen() {
 
   const totalSlots = machines.reduce((s, m) => s + m.slots.length, 0);
   const totalQty = machines.reduce((s, m) => s + m.slots.reduce((ss, sl) => ss + sl.qty, 0), 0);
-  const lowSlots = machines.reduce((s, m) => s + m.slots.filter((sl) => sl.qty < 10).length, 0);
   const totalRevenue = history.reduce((s, c) => s + c.revenue_est, 0);
 
   return (
