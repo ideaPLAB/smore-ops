@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations, getAllProducts, changeGachaSlot, createGachaMachine } from '@/lib/ledger/queries';
-import type { GachaMachine, GachaSlot, GachaCheck } from '@/lib/ledger/queries';
+import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations, getAllProducts, changeGachaSlot, createGachaMachine, getGachaSlotHistories } from '@/lib/ledger/queries';
+import type { GachaMachine, GachaSlot, GachaCheck, GachaSlotHistory } from '@/lib/ledger/queries';
 import type { LocationRow, ProductRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
 
@@ -214,24 +214,32 @@ function MachineRegisterModal({
   );
 }
 
-function MachineCard({ machine, onRefresh, onSaved, products }: { machine: GachaMachine; onRefresh: () => void; onSaved: (a: LastAction) => void; products: ProductRow[] }) {
+function MachineCard({ machine, onRefresh, onSaved, products, slotHistories }: {
+  machine: GachaMachine;
+  onRefresh: () => void;
+  onSaved: (a: LastAction) => void;
+  products: ProductRow[];
+  slotHistories: Record<string, GachaSlotHistory[]>;
+}) {
   const [changeSlot, setChangeSlot] = useState<GachaSlot | null>(null);
   const [refillActive, setRefillActive] = useState<Set<string>>(new Set());
   const [refillValues, setRefillValues] = useState<Record<string, string>>({});
   const [savingSlots, setSavingSlots] = useState<Set<string>>(new Set());
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [err, setErr] = useState('');
 
   const lowCount = machine.slots.filter((s) => s.qty < 10).length;
   const totalQty = machine.slots.reduce((s, sl) => s + sl.qty, 0);
 
+  // 이 머신의 모든 슬롯 품목변경 이력 (최신순)
+  const allHistory = machine.slots
+    .flatMap((s) => (slotHistories[s.id] ?? []).map((h) => ({ ...h, slot_no: s.slot_no })))
+    .sort((a, b) => new Date(b.applied_at).getTime() - new Date(a.applied_at).getTime());
+
   function toggleRefill(slotId: string) {
     setRefillActive((prev) => {
       const next = new Set(prev);
-      if (next.has(slotId)) {
-        next.delete(slotId);
-      } else {
-        next.add(slotId);
-      }
+      next.has(slotId) ? next.delete(slotId) : next.add(slotId);
       return next;
     });
     setErr('');
@@ -269,32 +277,44 @@ function MachineCard({ machine, onRefresh, onSaved, products }: { machine: Gacha
       </div>
 
       {machine.slots.map((s) => (
-        <div key={s.id}>
-          <div className="lg-lg" style={{ padding: '8px 16px' }}>
-            <span style={{ flex: '0 0 28px', color: 'var(--lg-muted)', fontSize: '.78rem', fontWeight: 700 }}>#{s.slot_no}</span>
-            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{s.product_name ?? <em style={{ color: 'var(--lg-faint)' }}>미설정</em>}</span>
-            {s.price > 0 && <span style={{ flex: '0 0 auto', color: 'var(--lg-muted)', fontSize: '.78rem' }}>{s.price.toLocaleString()}원</span>}
-            <span
-              style={{
-                flex: '0 0 36px', textAlign: 'right',
-                fontWeight: 700, fontVariantNumeric: 'tabular-nums',
-                color: s.qty < 10 ? 'var(--lg-rust)' : undefined,
-              }}
-            >
-              {s.qty}
-            </span>
-            <button className="lg-btn-ghost" style={{ flex: '0 0 auto', padding: '4px 10px', fontSize: '.78rem' }} onClick={() => setChangeSlot(s)}>
-              품목변경
-            </button>
+        <div key={s.id} style={{ borderBottom: '1px solid var(--lg-line-soft)' }}>
+          {/* 슬롯 헤더: 번호 + 품목명(두 줄) + 잔량 + 버튼 */}
+          <div style={{ padding: '10px 16px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <span style={{ flex: '0 0 28px', color: 'var(--lg-muted)', fontSize: '.78rem', fontWeight: 700, paddingTop: 2 }}>#{s.slot_no}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 500, fontSize: '.88rem', lineHeight: 1.3 }}>
+                {s.product_name ?? <em style={{ color: 'var(--lg-faint)', fontWeight: 400 }}>미설정</em>}
+              </div>
+              {s.sku && (
+                <div style={{ fontSize: '.74rem', color: 'var(--lg-muted)', marginTop: 2 }}>{s.sku}</div>
+              )}
+            </div>
+            <div style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+              {s.price > 0 && <span style={{ fontSize: '.75rem', color: 'var(--lg-muted)' }}>{s.price.toLocaleString()}원</span>}
+              <span
+                style={{
+                  fontSize: '.88rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+                  color: s.qty < 10 ? 'var(--lg-rust)' : undefined,
+                }}
+              >
+                잔량 {s.qty}
+              </span>
+            </div>
+          </div>
+          {/* 액션 버튼 행 */}
+          <div style={{ padding: '0 16px 10px', display: 'flex', gap: 6, alignItems: 'center' }}>
             <button
               className={refillActive.has(s.id) ? 'lg-btn-main' : 'lg-btn-ghost'}
-              style={{ flex: '0 0 auto', padding: '4px 10px', fontSize: '.78rem', marginTop: 0, width: 'auto' }}
+              style={{ padding: '4px 12px', fontSize: '.78rem', marginTop: 0, width: 'auto' }}
               onClick={() => toggleRefill(s.id)}
             >
               보충
             </button>
+            <button className="lg-btn-ghost" style={{ padding: '4px 12px', fontSize: '.78rem' }} onClick={() => setChangeSlot(s)}>
+              품목변경
+            </button>
           </div>
-
+          {/* 보충 인라인 입력 */}
           {refillActive.has(s.id) && (
             <div style={{
               padding: '8px 16px 10px',
@@ -329,6 +349,39 @@ function MachineCard({ machine, onRefresh, onSaved, products }: { machine: Gacha
 
       {err && <p className="lg-err" style={{ padding: '4px 16px 8px', fontSize: '.8rem', margin: 0 }}>{err}</p>}
 
+      {/* 품목변경 이력 */}
+      {allHistory.length > 0 && (
+        <div style={{ borderTop: '1px solid var(--lg-line-soft)' }}>
+          <button
+            className="lg-btn-ghost"
+            style={{ width: '100%', padding: '8px 16px', fontSize: '.78rem', textAlign: 'left', borderRadius: 0 }}
+            onClick={() => setHistoryOpen((o) => !o)}
+          >
+            품목변경 이력 {allHistory.length}건 {historyOpen ? '▲' : '▼'}
+          </button>
+          {historyOpen && (
+            <div>
+              {allHistory.map((h) => (
+                <div key={h.id} style={{
+                  display: 'flex', gap: 8, alignItems: 'center',
+                  padding: '6px 16px', fontSize: '.78rem',
+                  borderTop: '1px solid var(--lg-line-soft)',
+                  background: 'var(--lg-surface)',
+                }}>
+                  <span style={{ flex: '0 0 28px', color: 'var(--lg-muted)', fontWeight: 700 }}>#{h.slot_no}</span>
+                  <span style={{ flex: 1, fontWeight: 500 }}>{h.product_name ?? '—'}</span>
+                  {h.sku && <span style={{ color: 'var(--lg-muted)', fontSize: '.72rem' }}>{h.sku}</span>}
+                  {h.price != null && <span style={{ color: 'var(--lg-muted)' }}>{h.price.toLocaleString()}원</span>}
+                  <span style={{ flex: '0 0 auto', color: 'var(--lg-muted)', fontSize: '.72rem' }}>
+                    {new Date(h.applied_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {changeSlot && (
         <SlotChangeModal slot={changeSlot} products={products} onClose={() => setChangeSlot(null)} onDone={onRefresh} />
       )}
@@ -356,6 +409,7 @@ function HistoryRow({ c }: { c: GachaCheck }) {
 export function GachaScreen() {
   const [machines, setMachines] = useState<GachaMachine[]>([]);
   const [history, setHistory] = useState<GachaCheck[]>([]);
+  const [slotHistories, setSlotHistories] = useState<Record<string, GachaSlotHistory[]>>({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [undoStack, setUndoStack] = useState<LastAction[]>([]);
@@ -398,7 +452,16 @@ export function GachaScreen() {
 
   function load() {
     Promise.all([getGachaMachines(selectedLoc || undefined), getGachaChecks()])
-      .then(([m, h]) => { setMachines(m); setHistory(h); })
+      .then(([m, h]) => {
+        setMachines(m);
+        setHistory(h);
+        const allSlotIds = m.flatMap((machine) => machine.slots.map((s) => s.id));
+        if (allSlotIds.length > 0) {
+          getGachaSlotHistories(allSlotIds)
+            .then(setSlotHistories)
+            .catch(() => { /* 이력 조회 실패해도 메인 화면은 동작 */ });
+        }
+      })
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
   }
@@ -488,7 +551,7 @@ export function GachaScreen() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(340px,1fr))', gap: 12, marginTop: 12 }}>
           {machines.map((m) => (
-            <MachineCard key={m.bin_id} machine={m} onRefresh={load} onSaved={handleSaved} products={products} />
+            <MachineCard key={m.bin_id} machine={m} onRefresh={load} onSaved={handleSaved} products={products} slotHistories={slotHistories} />
           ))}
         </div>
       )}

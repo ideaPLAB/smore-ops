@@ -730,6 +730,40 @@ export async function createGachaMachine(
   if (slotsErr) throw slotsErr;
 }
 
+// 슬롯 품목변경 이력 조회 (gacha_slot_history)
+export interface GachaSlotHistory {
+  id: string;
+  applied_at: string;
+  product_name: string | null;
+  sku: string | null;
+  price: number | null;
+}
+
+export async function getGachaSlotHistories(slotIds: string[]): Promise<Record<string, GachaSlotHistory[]>> {
+  if (slotIds.length === 0) return {};
+  const { data, error } = await client()
+    .from('gacha_slot_history')
+    .select('id,slot_id,applied_at,price,product:products(name,sku)')
+    .in('slot_id', slotIds)
+    .order('applied_at', { ascending: false });
+  if (error) throw error;
+  const result: Record<string, GachaSlotHistory[]> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const row of (data ?? []) as any[]) {
+    const p = Array.isArray(row.product) ? row.product[0] : row.product;
+    const item: GachaSlotHistory = {
+      id: row.id,
+      applied_at: row.applied_at,
+      product_name: p?.name ?? null,
+      sku: p?.sku ?? null,
+      price: row.price,
+    };
+    if (!result[row.slot_id]) result[row.slot_id] = [];
+    result[row.slot_id].push(item);
+  }
+  return result;
+}
+
 // ── 출고 대기열 ──────────────────────────────────────────────────────────────────
 
 export interface QueueItem {
