@@ -231,7 +231,7 @@ function NoOrderModal({ onClose, onDone }: { onClose: () => void; onDone: (msg: 
               className="lg-btn-ghost"
               onClick={() => setScanning(true)}
               title="카메라로 바코드 스캔"
-              style={{ flexShrink: 0, fontSize: '1.1rem', padding: '0 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ flexShrink: 0, fontSize: '1.1rem', padding: '0 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}
             >
               📷
             </button>
