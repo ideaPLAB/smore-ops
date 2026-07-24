@@ -2,7 +2,7 @@
 
 import { useEffect, useState, FormEvent } from 'react';
 import { getLocations, SupabaseMissingError } from '@/lib/ledger/queries';
-import { listAccounts, createAccount, updateAccount, resetPassword, AccountRow } from '@/lib/ledger/auth';
+import { listAccounts, createAccount, updateAccount, resetPassword, createLocation, updateLocation, AccountRow } from '@/lib/ledger/auth';
 import { ROLE_NM, ROLES, Role } from '@/lib/ledger/roles';
 import { useRole } from '../role-context';
 import type { LocationRow } from '@/lib/ledger/types';
@@ -51,6 +51,13 @@ export function AccountsScreen() {
   const [fRole, setFRole] = useState<Role>('manager');
   const [fLocation, setFLocation] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // 매장 추가 폼
+  const [lName, setLName] = useState('');
+  const [lType, setLType] = useState('store');
+  const [lEcount, setLEcount] = useState('');
+  const [lCloses, setLCloses] = useState('');
+  const [creatingLoc, setCreatingLoc] = useState(false);
 
   const isMaster = session?.role === 'admin';
 
@@ -142,6 +149,44 @@ export function AccountsScreen() {
       await load();
     } catch (e) {
       setActionMsg(`상태 변경 실패: ${(e as Error)?.message ?? String(e)}`);
+    }
+  }
+
+  async function submitCreateLocation(e: FormEvent) {
+    e.preventDefault();
+    if (!session || creatingLoc) return;
+    setCreatingLoc(true);
+    setActionMsg('');
+    try {
+      await createLocation(session.id, {
+        name: lName,
+        type: lType,
+        ecountCode: lEcount || null,
+        opensAt: null,
+        closesAt: lType === 'popup' && lCloses ? lCloses : null,
+      });
+      setActionMsg(`매장 추가 완료: ${lName.trim()}`);
+      setLName(''); setLType('store'); setLEcount(''); setLCloses('');
+      await load();
+    } catch (e) {
+      setActionMsg(`매장 추가 실패: ${(e as Error)?.message ?? String(e)}`);
+    } finally {
+      setCreatingLoc(false);
+    }
+  }
+
+  async function toggleLocationActive(loc: LocationRow) {
+    if (!session) return;
+    if (loc.active && !window.confirm(`${loc.name} 매장을 비활성화할까요?`)) return;
+    setActionMsg('');
+    try {
+      await updateLocation(session.id, {
+        id: loc.id, active: !loc.active,
+        ecountCode: loc.ecount_code, closesAt: loc.closes_at,
+      });
+      await load();
+    } catch (e) {
+      setActionMsg(`매장 상태 변경 실패: ${(e as Error)?.message ?? String(e)}`);
     }
   }
 
@@ -291,6 +336,36 @@ export function AccountsScreen() {
             <div style={{ fontWeight: 700, fontSize: '.88rem', padding: '12px 16px 10px', borderBottom: '1px solid var(--lg-line)' }}>
               매장 현황
             </div>
+
+            {/* 매장 추가 */}
+            <form onSubmit={submitCreateLocation} style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--lg-line)' }}>
+              <input style={{ ...inputStyle, width: 150 }} placeholder="매장 이름" value={lName} onChange={(e) => setLName(e.target.value)} autoComplete="off" />
+              <select style={{ ...inputStyle, width: 100 }} value={lType} onChange={(e) => setLType(e.target.value)}>
+                <option value="store">상설</option>
+                <option value="popup">팝업</option>
+                <option value="warehouse">창고</option>
+                <option value="zerozone">제로존</option>
+              </select>
+              <input style={{ ...inputStyle, width: 130 }} placeholder="이카운트 코드 (선택)" value={lEcount} onChange={(e) => setLEcount(e.target.value)} autoComplete="off" />
+              {lType === 'popup' && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.76rem', color: 'var(--lg-muted)' }}>
+                  마감일
+                  <input style={{ ...inputStyle, width: 140 }} type="date" value={lCloses} onChange={(e) => setLCloses(e.target.value)} />
+                </label>
+              )}
+              <button
+                type="submit"
+                disabled={creatingLoc || lName.trim().length < 2}
+                style={{
+                  padding: '9px 18px', border: 'none', borderRadius: 7,
+                  background: 'var(--lg-pine, #2f5d50)', color: '#fff', fontWeight: 700, fontSize: '.82rem',
+                  cursor: 'pointer', opacity: creatingLoc || lName.trim().length < 2 ? 0.55 : 1,
+                }}
+              >
+                {creatingLoc ? '추가 중…' : '매장 추가'}
+              </button>
+            </form>
+
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.84rem' }}>
               <thead>
                 <tr>
@@ -299,6 +374,7 @@ export function AccountsScreen() {
                   <th style={thStyle}>이카운트 코드</th>
                   <th style={thStyle}>팝업 마감</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>상태</th>
+                  <th style={{ ...thStyle, textAlign: 'right', paddingRight: 16 }}>관리</th>
                 </tr>
               </thead>
               <tbody>
@@ -311,10 +387,15 @@ export function AccountsScreen() {
                     <td style={{ padding: '8px', textAlign: 'center' }}>
                       <span className={`lg-tag${l.active ? '' : ' lg-tag-dev'}`}>{l.active ? '활성' : '비활성'}</span>
                     </td>
+                    <td style={{ padding: '8px 16px 8px 8px', textAlign: 'right' }}>
+                      <button type="button" onClick={() => toggleLocationActive(l)} style={{ padding: '4px 8px', fontSize: '.72rem', border: '1px solid var(--lg-line)', borderRadius: 6, background: 'transparent', cursor: 'pointer', color: l.active ? '#c0392b' : undefined }}>
+                        {l.active ? '비활성화' : '활성화'}
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {locations.length === 0 && (
-                  <tr><td colSpan={5} style={{ padding: '16px', textAlign: 'center', color: 'var(--lg-muted)' }}>등록된 매장이 없습니다</td></tr>
+                  <tr><td colSpan={6} style={{ padding: '16px', textAlign: 'center', color: 'var(--lg-muted)' }}>등록된 매장이 없습니다</td></tr>
                 )}
               </tbody>
             </table>

@@ -74,3 +74,34 @@ export async function resetPassword(actorId: string, id: string, password: strin
   });
   if (error) throw error;
 }
+
+// ── 매장 관리 (schema_patch_v0_26, 마스터 전용) ──────────────────────────────
+
+export async function createLocation(
+  actorId: string,
+  input: { name: string; type: string; ecountCode: string | null; opensAt: string | null; closesAt: string | null },
+): Promise<void> {
+  const { error } = await client().rpc('app_create_location', {
+    p_actor: actorId,
+    p_name: input.name,
+    p_type: input.type,
+    p_ecount_code: input.ecountCode,
+    p_opens_at: input.opensAt,
+    p_closes_at: input.closesAt,
+  });
+  if (error) throw error;
+}
+
+export async function updateLocation(
+  actorId: string,
+  input: { id: string; active: boolean; ecountCode: string | null; closesAt: string | null },
+): Promise<void> {
+  const { error } = await client().rpc('app_update_location', {
+    p_actor: actorId,
+    p_id: input.id,
+    p_active: input.active,
+    p_ecount_code: input.ecountCode,
+    p_closes_at: input.closesAt,
+  });
+  if (error) throw error;
+}
