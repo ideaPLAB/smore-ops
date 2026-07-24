@@ -293,7 +293,8 @@ function MachineCard({ machine, onRefresh, onSaved, products, slotHistories }: {
               {s.price > 0 && <span style={{ fontSize: '.75rem', color: 'var(--lg-muted)' }}>{s.price.toLocaleString()}원</span>}
               <span
                 style={{
-                  fontSize: '.88rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+                  fontSize: '.88rem', fontVariantNumeric: 'tabular-nums',
+                  color: '#f97316',
                 }}
               >
                 총 보충수량 {s.qty}
