@@ -294,10 +294,9 @@ function MachineCard({ machine, onRefresh, onSaved, products, slotHistories }: {
               <span
                 style={{
                   fontSize: '.88rem', fontWeight: 700, fontVariantNumeric: 'tabular-nums',
-                  color: s.qty < 10 ? 'var(--lg-rust)' : undefined,
                 }}
               >
-                잔량 {s.qty}
+                총 보충수량 {s.qty}
               </span>
             </div>
           </div>
@@ -531,12 +530,8 @@ export function GachaScreen() {
           <div className="lg-kv">{loading ? '…' : totalSlots}</div>
         </div>
         <div className="lg-kpi">
-          <div className="lg-kl">머신 내 잔량 합</div>
+          <div className="lg-kl">총 보충수량 합</div>
           <div className="lg-kv">{loading ? '…' : totalQty}</div>
-        </div>
-        <div className="lg-kpi">
-          <div className="lg-kl">잔량 10개 미만 슬롯</div>
-          <div className="lg-kv lg-warn">{loading ? '…' : lowSlots}</div>
         </div>
         <div className="lg-kpi">
           <div className="lg-kl">판매추정 매출 (누계)</div>
