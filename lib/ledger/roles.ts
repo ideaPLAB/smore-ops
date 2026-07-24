@@ -44,11 +44,11 @@ export const SCREEN_NM: Record<ScreenId, string> = {
   guide: '사용 안내',
 };
 
-// 역할별 접근 가능한 화면 (mockup ROLE_TABS 그대로).
-// admin은 마스터 → 전 화면.
+// 역할별 접근 가능한 화면.
+// admin은 마스터 → 전 화면. 계정 관리(accounts)는 마스터 전용 (2026-07-24).
 export const ROLE_TABS: Record<Role, ScreenId[]> = {
   admin: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'sales', 'items', 'accounts', 'wiki', 'guide'],
-  hq: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'sales', 'items', 'accounts', 'wiki', 'guide'],
+  hq: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'sales', 'items', 'wiki', 'guide'],
   manager: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'guide'],
   warehouse: ['queue', 'inbound', 'stock', 'guide'],
 };

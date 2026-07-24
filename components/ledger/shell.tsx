@@ -17,6 +17,7 @@ import { ItemsScreen } from './screens/items-screen';
 import { AccountsScreen } from './screens/accounts-screen';
 import { GuideScreen } from './screens/guide-screen';
 import { WikiScreen } from './screens/wiki-screen';
+import { LoginScreen } from './screens/login-screen';
 
 function ScreenHost({ screen }: { screen: ScreenId }) {
   switch (screen) {
@@ -54,16 +55,18 @@ function ScreenHost({ screen }: { screen: ScreenId }) {
 }
 
 function ShellInner() {
-  const { role, setRole, locationName } = useRole();
+  const { role, setRole, session, logout } = useRole();
   const tabs = ROLE_TABS[role];
   const [screen, setScreen] = useState<ScreenId>(tabs[0]);
 
-  // 역할을 바꾸면 접근 불가 화면이면 첫 탭으로 이동
+  // 역할을 바꾸면 접근 불가 화면이면 첫 탭으로 이동 (마스터 전용 미리보기)
   function changeRole(r: typeof role) {
     setRole(r);
     const next = ROLE_TABS[r];
     if (!next.includes(screen)) setScreen(next[0]);
   }
+
+  if (!session) return null;
 
   return (
     <div className="ledger">
@@ -88,19 +91,44 @@ function ShellInner() {
       <div className="lg-content">
         <header className="lg-topbar">
           <h1 className="lg-title">{SCREEN_NM[screen]}</h1>
-          <div className="lg-rolebox">
-            <select
-              aria-label="역할 전환"
-              className="lg-roleselect"
-              value={role}
-              onChange={(e) => changeRole(e.target.value as typeof role)}
+          <div className="lg-rolebox" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {session.role === 'admin' ? (
+              <select
+                aria-label="역할 전환 (마스터 미리보기)"
+                className="lg-roleselect"
+                value={role}
+                onChange={(e) => changeRole(e.target.value as typeof role)}
+              >
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_NM[r]}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span style={{ fontSize: '.8rem', color: 'var(--lg-muted)' }}>
+                {ROLE_NM[role]}
+                {session.location_name ? ` · ${session.location_name}` : ''}
+              </span>
+            )}
+            <span style={{ fontSize: '.8rem', fontWeight: 600 }}>
+              {session.display_name || session.username}
+            </span>
+            <button
+              type="button"
+              onClick={logout}
+              style={{
+                padding: '5px 10px',
+                fontSize: '.74rem',
+                border: '1px solid var(--lg-line)',
+                borderRadius: 7,
+                background: 'transparent',
+                color: 'var(--lg-muted)',
+                cursor: 'pointer',
+              }}
             >
-              {ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {ROLE_NM[r]}
-                </option>
-              ))}
-            </select>
+              로그아웃
+            </button>
           </div>
         </header>
 
@@ -114,10 +142,17 @@ function ShellInner() {
   );
 }
 
+function ShellGate() {
+  const { session, ready } = useRole();
+  if (!ready) return null; // sessionStorage 복원 전 깜빡임 방지
+  if (!session) return <LoginScreen />;
+  return <ShellInner />;
+}
+
 export function LedgerShell() {
   return (
     <RoleProvider>
-      <ShellInner />
+      <ShellGate />
     </RoleProvider>
   );
 }
