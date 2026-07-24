@@ -231,7 +231,7 @@ function NoOrderModal({ onClose, onDone }: { onClose: () => void; onDone: (msg: 
               className="lg-btn-ghost"
               onClick={() => setScanning(true)}
               title="카메라로 바코드 스캔"
-              style={{ flexShrink: 0, fontSize: '1.1rem', padding: '0 14px' }}
+              style={{ flexShrink: 0, fontSize: '1.1rem', padding: '0 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               📷
             </button>
@@ -275,7 +275,7 @@ function NoOrderModal({ onClose, onDone }: { onClose: () => void; onDone: (msg: 
         {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
 
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
-          <button type="button" className="lg-btn-ghost" onClick={onClose}>취소</button>
+          <button type="button" className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px', background: 'var(--lg-surface)', color: 'var(--lg-ink)', border: '1px solid var(--lg-line)' }} onClick={onClose}>취소</button>
           <button type="button" className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px' }} disabled={saving || !found} onClick={save}>
             {saving ? '등록 중…' : '입고 등록'}
           </button>
