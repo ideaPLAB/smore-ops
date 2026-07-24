@@ -452,7 +452,7 @@ export async function getInboundOrders(toLocationId?: string): Promise<InboundOr
     .select(
       `id,order_no,status,requested_at,
        from_loc:locations!transfer_orders_from_location_fkey(name),
-       to_loc:locations!transfer_orders_to_location_fkey(name),
+       to_loc:locations!transfer_orders_to_location_fkey(name,type),
        origin_vendor:vendors!transfer_orders_origin_vendor_id_fkey(name),
        lines:transfer_order_lines(
          id,qty_ordered,qty_received,received_at,
@@ -466,7 +466,12 @@ export async function getInboundOrders(toLocationId?: string): Promise<InboundOr
   const { data, error } = await q;
   if (error) throw error;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return ((data ?? []) as any[]).map((o) => ({
+  const raw = (data ?? []) as any[];
+  // toLocationId 없이 호출 시(입고처리 화면) — 광주 물류(type=warehouse)로 향하는 전표만 표시
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = toLocationId ? raw : raw.filter((o: any) => o.to_loc?.type === 'warehouse');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return rows.map((o) => ({
     id: o.id,
     order_no: o.order_no,
     status: o.status,
