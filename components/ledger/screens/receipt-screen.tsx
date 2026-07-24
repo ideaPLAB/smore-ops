@@ -1,11 +1,17 @@
 'use client';
 
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { getInboundOrders, receiveLine, getAllProducts, getLocations, manualReceive } from '@/lib/ledger/queries';
 import { useRole } from '../role-context';
 import type { InboundLine, InboundOrder } from '@/lib/ledger/queries';
 import type { ProductRow, LocationRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
+
+const BarcodeScanner = dynamic(
+  () => import('../barcode-scanner').then((m) => ({ default: m.BarcodeScanner })),
+  { ssr: false },
+);
 
 const DIFF_REASONS = ['수량 부족', '파손', '미발송', '이미 수령 완료', '기타'];
 const NOORDER_SOURCES = ['전표 누락', '긴급 조달', '기타'];
@@ -132,6 +138,7 @@ function NoOrderModal({ onClose, onDone }: { onClose: () => void; onDone: (msg: 
   const [memo, setMemo] = useState('');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+  const [scanning, setScanning] = useState(false);
 
   useEffect(() => {
     getLocations()
@@ -143,6 +150,16 @@ function NoOrderModal({ onClose, onDone }: { onClose: () => void; onDone: (msg: 
       .catch(() => {});
     getAllProducts().then(setProducts).catch(() => {});
   }, []);
+
+  const handleScan = useCallback((code: string) => {
+    setBc(code);
+    setScanning(false);
+    const p = products.find(
+      (x) => x.barcode === code || x.sku === code || x.product_code === code || x.name === code,
+    );
+    if (p) { setFound(p); setLookupMsg(''); }
+    else { setFound(null); setLookupMsg(`✗ 등록되지 않은 바코드입니다 (${code}) — 상품관리에서 먼저 등록해 주세요`); }
+  }, [products]);
 
   function lookup() {
     const raw = bc.trim();
@@ -209,8 +226,18 @@ function NoOrderModal({ onClose, onDone }: { onClose: () => void; onDone: (msg: 
               placeholder="스캔하거나 입력 후 조회"
               style={{ flex: 1 }}
             />
+            <button
+              type="button"
+              className="lg-btn-ghost"
+              onClick={() => setScanning(true)}
+              title="카메라로 바코드 스캔"
+              style={{ flexShrink: 0, fontSize: '1.1rem', padding: '0 14px' }}
+            >
+              📷
+            </button>
             <button type="button" className="lg-btn-ghost" onClick={lookup}>상품 조회</button>
           </div>
+          {scanning && <BarcodeScanner onDetected={handleScan} onClose={() => setScanning(false)} />}
 
           <div style={{ border: '1.5px dashed var(--lg-line)', borderRadius: 10, padding: '10px 14px', fontSize: '.82rem', color: found ? 'var(--lg-ink)' : 'var(--lg-faint)' }}>
             {found ? (
