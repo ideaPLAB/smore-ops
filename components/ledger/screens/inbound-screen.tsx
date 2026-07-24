@@ -111,7 +111,7 @@ export function InboundScreen() {
 
   async function load() {
     try {
-      const data = await getInboundOrders();
+      const data = await getInboundOrders(undefined, 'warehouse');
       setOrders(data);
       setStatus('ready');
     } catch (e) {

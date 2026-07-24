@@ -297,7 +297,7 @@ export function ReceiptScreen() {
 
   function load() {
     const v = ++version.current;
-    getInboundOrders()
+    getInboundOrders(undefined, 'store')
       .then((data) => { if (v === version.current) setOrders(data); })
       .catch((e) => setErr(e.message))
       .finally(() => { if (v === version.current) setLoading(false); });

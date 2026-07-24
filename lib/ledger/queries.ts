@@ -446,7 +446,8 @@ export interface InboundOrder {
   lines: InboundLine[];
 }
 
-export async function getInboundOrders(toLocationId?: string): Promise<InboundOrder[]> {
+// locationType: 'warehouse' = 광주 물류 입고처리용, 'store' = 매장 입고검수용, undefined = 전체
+export async function getInboundOrders(toLocationId?: string, locationType?: string): Promise<InboundOrder[]> {
   let q = client()
     .from('transfer_orders')
     .select(
@@ -467,9 +468,8 @@ export async function getInboundOrders(toLocationId?: string): Promise<InboundOr
   if (error) throw error;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw = (data ?? []) as any[];
-  // toLocationId 없이 호출 시(입고처리 화면) — 광주 물류(type=warehouse)로 향하는 전표만 표시
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = toLocationId ? raw : raw.filter((o: any) => o.to_loc?.type === 'warehouse');
+  const rows = locationType ? raw.filter((o: any) => o.to_loc?.type === locationType) : raw;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return rows.map((o) => ({
     id: o.id,
