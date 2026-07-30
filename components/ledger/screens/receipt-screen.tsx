@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { getInboundOrders, receiveLine, getAllProducts, getLocations, manualReceive } from '@/lib/ledger/queries';
+import { getInboundOrders, receiveLine, cancelReceiveLine, getAllProducts, getLocations, manualReceive } from '@/lib/ledger/queries';
 import { useRole } from '../role-context';
 import type { InboundLine, InboundOrder } from '@/lib/ledger/queries';
 import type { ProductRow, LocationRow } from '@/lib/ledger/types';
@@ -20,6 +20,7 @@ function DiffRow({ line, onSaved }: { line: InboundLine; onSaved: () => void }) 
   const [qty, setQty] = useState<string>(line.qty_received != null ? String(line.qty_received) : String(line.qty_ordered));
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [saved, setSaved] = useState(line.qty_received != null);
   const [err, setErr] = useState('');
 
@@ -38,6 +39,22 @@ function DiffRow({ line, onSaved }: { line: InboundLine; onSaved: () => void }) 
       setErr((e as Error).message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function cancel() {
+    if (!window.confirm(`${line.product_name} 검수를 취소할까요? 반영된 재고가 롤백됩니다.`)) return;
+    setCancelling(true); setErr('');
+    try {
+      await cancelReceiveLine(line.id);
+      setSaved(false);
+      setQty(String(line.qty_ordered));
+      setReason('');
+      onSaved();
+    } catch (e: unknown) {
+      setErr((e as Error).message);
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -87,6 +104,12 @@ function DiffRow({ line, onSaved }: { line: InboundLine; onSaved: () => void }) 
             onClick={() => setSaved(false)}
             style={{ fontSize: '.72rem', padding: '2px 8px' }}
           >수정</button>
+          <button
+            className="lg-btn-ghost"
+            disabled={cancelling}
+            onClick={cancel}
+            style={{ fontSize: '.72rem', padding: '2px 8px', color: 'var(--lg-rust)' }}
+          >{cancelling ? '취소 중…' : '검수 취소'}</button>
         </span>
       )}
       {err && <span className="lg-err" style={{ flex: '1 0 100%', fontSize: '.78rem' }}>{err}</span>}
