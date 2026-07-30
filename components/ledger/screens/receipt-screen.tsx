@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
-import { getInboundOrders, receiveLine, cancelReceiveLine, getAllProducts, getLocations, manualReceive } from '@/lib/ledger/queries';
+import {
+  getInboundOrders, receiveLine, cancelReceiveLine,
+  getOrderAttachments, uploadOrderAttachment, deleteOrderAttachment,
+  getAllProducts, getLocations, manualReceive,
+  type OrderAttachment,
+} from '@/lib/ledger/queries';
 import { useRole } from '../role-context';
 import type { InboundLine, InboundOrder } from '@/lib/ledger/queries';
 import type { ProductRow, LocationRow } from '@/lib/ledger/types';
@@ -16,7 +21,7 @@ const BarcodeScanner = dynamic(
 const DIFF_REASONS = ['수량 부족', '파손', '미발송', '이미 수령 완료', '기타'];
 const NOORDER_SOURCES = ['전표 누락', '긴급 조달', '기타'];
 
-function DiffRow({ line, onSaved }: { line: InboundLine; onSaved: () => void }) {
+function DiffRow({ line, onSaved, locked }: { line: InboundLine; onSaved: () => void; locked?: boolean }) {
   const [qty, setQty] = useState<string>(line.qty_received != null ? String(line.qty_received) : String(line.qty_ordered));
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
@@ -72,7 +77,7 @@ function DiffRow({ line, onSaved }: { line: InboundLine; onSaved: () => void }) 
         min="0"
         className="lg-qty-input"
         value={qty}
-        disabled={saved}
+        disabled={saved || locked}
         onChange={(e) => { setQty(e.target.value); setSaved(false); }}
         style={{ flex: '0 0 72px' }}
       />
@@ -90,7 +95,7 @@ function DiffRow({ line, onSaved }: { line: InboundLine; onSaved: () => void }) 
       {!saved ? (
         <button
           className="lg-btn-ghost"
-          disabled={saving || needReason}
+          disabled={saving || needReason || locked}
           onClick={save}
           style={{ flex: '0 0 auto' }}
         >
@@ -117,11 +122,110 @@ function DiffRow({ line, onSaved }: { line: InboundLine; onSaved: () => void }) 
   );
 }
 
+const ATTACH_HINT = '거래명세서를 먼저 첨부해 주세요. 명세서가 없는 경우 이카운트에서 해당 발주 전표를 출력(인쇄 → PDF 저장 또는 스크린샷)하여 올려주시면 됩니다. 첨부 완료 후 수량 입력이 가능합니다.';
+
+function AttachSection({ orderId, onHasAttach }: { orderId: string; onHasAttach: (has: boolean) => void }) {
+  const [attachments, setAttachments] = useState<OrderAttachment[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const list = await getOrderAttachments(orderId);
+      setAttachments(list);
+      onHasAttach(list.length > 0);
+    } catch { /* 무시 */ }
+  }, [orderId, onHasAttach]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploading(true); setErr('');
+    try {
+      for (const f of Array.from(files)) {
+        await uploadOrderAttachment(orderId, f);
+      }
+      await load();
+    } catch (e: unknown) {
+      setErr((e as Error).message);
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  }
+
+  async function handleDelete(att: OrderAttachment) {
+    if (!window.confirm(`${att.filename} 을 삭제할까요?`)) return;
+    try {
+      await deleteOrderAttachment(att.id, att.path);
+      await load();
+    } catch (e: unknown) {
+      setErr((e as Error).message);
+    }
+  }
+
+  return (
+    <div style={{ borderTop: '1px solid var(--lg-line)', padding: '10px 14px 6px', background: '#fafaf8' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: '.78rem', fontWeight: 600, color: attachments.length > 0 ? 'var(--lg-pine)' : 'var(--lg-rust)' }}>
+          {attachments.length > 0 ? `📎 명세서 ${attachments.length}장` : '📎 명세서 미첨부'}
+        </span>
+        <button
+          type="button"
+          className="lg-btn-ghost"
+          style={{ fontSize: '.72rem', padding: '2px 10px' }}
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
+        >
+          {uploading ? '업로드 중…' : '+ 파일 추가'}
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          accept="image/*,application/pdf"
+          style={{ display: 'none' }}
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+      </div>
+      {attachments.length > 0 ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {attachments.map((att) => (
+            <div key={att.id} style={{ position: 'relative', display: 'inline-block' }}>
+              {att.filename.match(/\.(jpg|jpeg|png|webp|heic|heif)$/i) ? (
+                <a href={att.url} target="_blank" rel="noreferrer">
+                  <img src={att.url} alt={att.filename} style={{ height: 56, width: 56, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--lg-line)', display: 'block' }} />
+                </a>
+              ) : (
+                <a href={att.url} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '.72rem', color: 'var(--lg-ink)', background: 'var(--lg-surface)', border: '1px solid var(--lg-line)', borderRadius: 6, padding: '4px 8px', textDecoration: 'none' }}>
+                  📄 {att.filename}
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={() => handleDelete(att)}
+                style={{ position: 'absolute', top: -6, right: -6, background: 'var(--lg-rust)', color: 'white', border: 'none', borderRadius: '50%', width: 16, height: 16, fontSize: 10, lineHeight: '16px', textAlign: 'center', cursor: 'pointer', padding: 0 }}
+              >×</button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p style={{ margin: 0, fontSize: '.72rem', color: 'var(--lg-muted)', lineHeight: 1.5 }}>{ATTACH_HINT}</p>
+      )}
+      {err && <p className="lg-err" style={{ margin: '4px 0 0', fontSize: '.72rem' }}>{err}</p>}
+    </div>
+  );
+}
+
 function OrderCard({ order, onRefresh, dimmed }: { order: InboundOrder; onRefresh: () => void; dimmed?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [hasAttach, setHasAttach] = useState(false);
   const doneCount = order.lines.filter((l) => l.qty_received != null).length;
   const allDone = doneCount === order.lines.length;
   const aging = Math.floor((Date.now() - new Date(order.requested_at).getTime()) / 86400000);
+  const onHasAttach = useCallback((v: boolean) => setHasAttach(v), []);
 
   return (
     <div className="lg-vch" style={{ opacity: dimmed ? 0.7 : 1, background: dimmed ? '#f0f0ed' : undefined, borderLeft: dimmed ? '3px solid #ccc' : undefined }}>
@@ -130,6 +234,7 @@ function OrderCard({ order, onRefresh, dimmed }: { order: InboundOrder; onRefres
         <span className="lg-vch-to">{order.from_location_name}</span>
         {aging > 7 && <span className="lg-aging over">{aging}일 경과</span>}
         {aging <= 7 && aging > 0 && <span className="lg-aging">{aging}일 경과</span>}
+        {!dimmed && !hasAttach && <span style={{ fontSize: '.7rem', color: 'var(--lg-rust)' }}>📎 명세서 필요</span>}
         <span style={{ color: allDone ? 'var(--lg-pine)' : 'var(--lg-muted)', fontSize: '.78rem', fontWeight: allDone ? 700 : undefined }}>
           {allDone ? '✓ 완료' : `${doneCount}/${order.lines.length} 확인`}
         </span>
@@ -137,8 +242,14 @@ function OrderCard({ order, onRefresh, dimmed }: { order: InboundOrder; onRefres
       </button>
       {open && (
         <div className="lg-vch-body">
+          <AttachSection orderId={order.id} onHasAttach={onHasAttach} />
+          {!hasAttach && (
+            <div style={{ padding: '8px 14px', fontSize: '.78rem', color: 'var(--lg-rust)', background: '#fff8f6' }}>
+              ⚠️ 명세서를 먼저 첨부해야 수량 입력이 가능합니다.
+            </div>
+          )}
           {order.lines.map((l) => (
-            <DiffRow key={l.id} line={l} onSaved={onRefresh} />
+            <DiffRow key={l.id} line={l} onSaved={onRefresh} locked={!hasAttach} />
           ))}
         </div>
       )}

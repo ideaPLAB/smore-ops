@@ -508,6 +508,54 @@ export async function cancelReceiveLine(lineId: string): Promise<void> {
   if (error) throw error;
 }
 
+// ── 입고검수 첨부 (거래명세서) ──────────────────────────────────────────────
+// SQL: schema_patch_v0_28.sql — 'receipts' Storage 버킷 + transfer_order_attachments 테이블
+
+export interface OrderAttachment {
+  id: string;
+  order_id: string;
+  path: string;
+  filename: string;
+  created_at: string;
+  url: string;
+}
+
+export async function getOrderAttachments(orderId: string): Promise<OrderAttachment[]> {
+  const c = client();
+  const { data, error } = await c
+    .from('transfer_order_attachments')
+    .select('id,order_id,path,filename,created_at')
+    .eq('order_id', orderId)
+    .order('created_at');
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    ...row,
+    url: c.storage.from('receipts').getPublicUrl(row.path).data.publicUrl,
+  }));
+}
+
+export async function uploadOrderAttachment(orderId: string, file: File): Promise<OrderAttachment> {
+  const c = client();
+  const ext = file.name.split('.').pop() ?? 'jpg';
+  const path = `orders/${orderId}/${crypto.randomUUID()}.${ext}`;
+  const { error: upErr } = await c.storage.from('receipts').upload(path, file, { upsert: false });
+  if (upErr) throw upErr;
+  const { data, error } = await c
+    .from('transfer_order_attachments')
+    .insert({ order_id: orderId, path, filename: file.name })
+    .select('id,order_id,path,filename,created_at')
+    .single();
+  if (error) throw error;
+  return { ...data, url: c.storage.from('receipts').getPublicUrl(path).data.publicUrl };
+}
+
+export async function deleteOrderAttachment(id: string, path: string): Promise<void> {
+  const c = client();
+  await c.storage.from('receipts').remove([path]);
+  const { error } = await c.from('transfer_order_attachments').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // 수기 입고 등록 — 전표 없이 도착한 물건을 매장 재고에 즉시 가산 (store_receipt).
 // SQL: schema_patch_v0_10.sql 의 manual_receive RPC 필요.
 export async function manualReceive(args: {
