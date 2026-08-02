@@ -139,6 +139,10 @@ function Bullets({ items }: { items: string[] }) {
 }
 
 const UPDATES: { date: string; text: ReactNode }[] = [
+  { date: '2026-07-30', text: <Bullets items={[
+    '입고검수 라인 취소: 검수 완료된 라인을 개별 취소하면 재고가 자동 롤백됨 (schema_patch_v0_27 적용 필요)',
+    '입고검수 거래명세서 첨부 필수화: 명세서 업로드 없으면 수량 입력 불가, 여러 장 가능, 이카운트 전표 출력 안내 포함 (schema_patch_v0_28 적용 필요)',
+  ]} /> },
   { date: '2026-07-24', text: <Bullets items={[
     '로그인 도입: 계정별 아이디/비밀번호 로그인 (12시간 자동 만료, 브라우저 닫으면 로그아웃)',
     '계정 관리 개편: 마스터 계정 전용 — 계정 생성·역할 변경·비밀번호 재설정·비활성화',
