@@ -333,6 +333,21 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
     }
   }
 
+  // 마지막 보충/점검 되돌리기 (새로고침해도 동작 — gacha_check_undo RPC, 24시간 이내·이후 변경 없을 때만)
+  async function undoRefill(slot: GachaSlot) {
+    if (!confirm(`#${slot.slot_no} 슬롯의 마지막 보충을 취소할까요?\n(가장 최근 보충/점검 1건이 되돌려지고 재고가 복원됩니다)`)) return;
+    setSavingSlots((prev) => new Set(prev).add(slot.id));
+    setErr('');
+    try {
+      await undoGachaCheck(slot.id);
+      onRefresh();
+    } catch (e: unknown) {
+      setErr((e as Error).message);
+    } finally {
+      setSavingSlots((prev) => { const n = new Set(prev); n.delete(slot.id); return n; });
+    }
+  }
+
   async function handleDelete() {
     const msg = totalQty > 0
       ? `'${machine.bin_code}' 머신을 삭제할까요?\n현재 재고 ${totalQty}개가 남아 있어요. 삭제하면 목록에서 사라집니다.`
@@ -399,6 +414,15 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
             </button>
             <button className="lg-btn-ghost" style={{ padding: '4px 12px', fontSize: '.78rem' }} onClick={() => setChangeSlot(s)}>
               품목변경
+            </button>
+            <button
+              className="lg-btn-ghost"
+              style={{ padding: '4px 12px', fontSize: '.78rem', marginLeft: 'auto', color: 'var(--lg-rust)' }}
+              disabled={savingSlots.has(s.id)}
+              onClick={() => undoRefill(s)}
+              title="이 슬롯의 마지막 보충을 취소합니다"
+            >
+              보충 취소
             </button>
           </div>
           {/* 보충 인라인 입력 */}
