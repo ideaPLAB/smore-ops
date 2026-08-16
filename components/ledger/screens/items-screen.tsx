@@ -116,6 +116,84 @@ function ItemRow({ item, onRefresh, canDelete, selected, onSelect }: ItemRowProp
   );
 }
 
+function ProductCreateModal({ onClose, onDone }: { onClose: () => void; onDone: (msg: string) => void }) {
+  const [sku, setSku] = useState('');
+  const [name, setName] = useState('');
+  const [vendorName, setVendorName] = useState('');
+  const [supplyType, setSupplyType] = useState('사입');
+  const [barcode, setBarcode] = useState('');
+  const [orderUnit, setOrderUnit] = useState('1');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function save() {
+    if (!sku.trim()) { setErr('품목코드를 입력해 주세요 (예: GC001)'); return; }
+    if (!name.trim()) { setErr('품목명을 입력해 주세요'); return; }
+    setSaving(true); setErr('');
+    try {
+      const res = await fetch('/api/products/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sku: sku.trim(),
+          name: name.trim(),
+          vendor_name: vendorName.trim(),
+          supply_type: supplyType.trim(),
+          barcode: barcode.trim(),
+          order_unit: Number(orderUnit) || 1,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? '등록 실패');
+      onDone(`✅ 품목 등록 완료: ${sku.trim()} ${name.trim()}`);
+      onClose();
+    } catch (e: unknown) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background: 'white', borderRadius: 16, padding: 24, width: '90%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: '1.05rem' }}>직접 등록 (이카운트 미등록 상품)</h2>
+        <p style={{ margin: '0 0 14px', fontSize: '.78rem', color: 'var(--lg-muted)' }}>
+          품목코드는 이카운트와 안 겹치게 글자 접두어 추천 (예: GC001)
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <label className="lg-label">품목코드 *</label>
+          <input className="lg-input" value={sku} onChange={(e) => setSku(e.target.value)} placeholder="예: GC001" />
+          <label className="lg-label">품목명 *</label>
+          <input className="lg-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="상품명" />
+          <label className="lg-label">업체 (선택)</label>
+          <input className="lg-input" value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="예: [BN]비엔비퍼즐" />
+          <label className="lg-label">공급구분 (선택)</label>
+          <select className="lg-select" value={supplyType} onChange={(e) => setSupplyType(e.target.value)}>
+            <option value="사입">사입</option>
+            <option value="자사">자사</option>
+            <option value="위탁">위탁</option>
+          </select>
+          <label className="lg-label">바코드 (선택)</label>
+          <input className="lg-input" value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="바코드" />
+          <label className="lg-label">발주단위</label>
+          <input className="lg-input" type="number" min="1" value={orderUnit} onChange={(e) => setOrderUnit(e.target.value)} />
+        </div>
+        {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+          <button className="lg-btn-secondary" onClick={onClose}>취소</button>
+          <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px', marginTop: 0 }} disabled={saving} onClick={save}>
+            {saving ? '등록 중…' : '등록'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ItemsScreen() {
   const { role } = useRole();
   const canDelete = role === 'admin' || role === 'hq';
@@ -129,6 +207,7 @@ export function ItemsScreen() {
   const [uploadMsg, setUploadMsg] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -273,6 +352,14 @@ export function ItemsScreen() {
           <button
             type="button"
             className="lg-btn-ghost"
+            style={{ fontWeight: 600 }}
+            onClick={() => setShowCreate(true)}
+          >
+            + 직접 등록
+          </button>
+          <button
+            type="button"
+            className="lg-btn-ghost"
             style={{ background: 'var(--lg-pine)', color: 'white', border: 'none', fontWeight: 600 }}
             onClick={() => fileRef.current?.click()}
           >
@@ -281,6 +368,13 @@ export function ItemsScreen() {
           <input ref={fileRef} type="file" accept=".xlsx,.csv" style={{ display: 'none' }} onChange={handleFile} />
         </div>
       </div>
+
+      {showCreate && (
+        <ProductCreateModal
+          onClose={() => setShowCreate(false)}
+          onDone={(msg) => { setUploadMsg(msg); load(); }}
+        />
+      )}
 
       {uploadMsg && (
         <div className="lg-card" style={{ background: '#FFF8E1', border: '1px solid #FFD54F', marginBottom: 12, padding: '10px 14px', fontSize: '.83rem' }}>
