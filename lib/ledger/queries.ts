@@ -26,13 +26,22 @@ export async function getLocations(): Promise<LocationRow[]> {
 }
 
 export async function getProducts(): Promise<ProductRow[]> {
-  const { data, error } = await client()
-    .from('products')
-    .select('id,sku,product_code,barcode,name,order_unit,lead_time_days,safety_stock,active')
-    .eq('active', true)
-    .order('name');
-  if (error) throw error;
-  return (data ?? []) as ProductRow[];
+  // PostgREST 기본 1000행 제한 — 활성 상품이 1000개를 넘으면(현재 9천+) 페이지를 이어서 전부 가져온다.
+  const PAGE = 1000;
+  const all: ProductRow[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await client()
+      .from('products')
+      .select('id,sku,product_code,barcode,name,order_unit,lead_time_days,safety_stock,active')
+      .eq('active', true)
+      .order('name')
+      .range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as ProductRow[];
+    all.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return all;
 }
 
 // 이동중 3-way 대사용: 열려 있는 출고지시 + 라인.
