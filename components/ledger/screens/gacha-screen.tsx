@@ -98,6 +98,7 @@ function SlotChangeModal({
 }) {
   const [productId, setProductId] = useState(slot.product_id ?? '');
   const [price, setPrice] = useState(String(slot.price));
+  const [remark, setRemark] = useState(slot.remark ?? '');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
@@ -107,7 +108,7 @@ function SlotChangeModal({
     if (isNaN(p) || p < 0) { setErr('판매가를 확인해 주세요'); return; }
     setSaving(true); setErr('');
     try {
-      await changeGachaSlot(slot.id, productId, p);
+      await changeGachaSlot(slot.id, productId, p, remark);
       onDone();
       onClose();
     } catch (e: unknown) {
@@ -134,6 +135,8 @@ function SlotChangeModal({
           <ProductSearch products={products} value={productId} onChange={setProductId} />
           <label className="lg-label">판매가 (원)</label>
           <input className="lg-input" type="number" min="0" step="100" value={price} onChange={(e) => setPrice(e.target.value)} />
+          <label className="lg-label">특이사항 (선택) — 예: 클리커 포함, 위치</label>
+          <input className="lg-input" value={remark} onChange={(e) => setRemark(e.target.value)} placeholder="간단히 메모" maxLength={100} />
         </div>
         {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
@@ -368,6 +371,9 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
               </div>
               {s.sku && (
                 <div style={{ fontSize: '.74rem', color: 'var(--lg-muted)', marginTop: 2 }}>{s.sku}</div>
+              )}
+              {s.remark && (
+                <div style={{ fontSize: '.72rem', color: 'var(--lg-hazel)', marginTop: 2 }}>📌 {s.remark}</div>
               )}
             </div>
             <div style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>

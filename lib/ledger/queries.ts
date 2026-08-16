@@ -636,6 +636,7 @@ export interface GachaSlot {
   sku: string | null;
   price: number;
   qty: number;
+  remark: string | null;
 }
 
 export interface GachaMachine {
@@ -667,7 +668,7 @@ export async function getGachaMachines(locationId?: string): Promise<GachaMachin
     .select(
       `id,code,location_id,
        slots:gacha_slots(
-         id,slot_no,price,qty,
+         id,slot_no,price,qty,remark,
          product:products(id,name,sku)
        )`
     )
@@ -698,6 +699,7 @@ export async function getGachaMachines(locationId?: string): Promise<GachaMachin
         sku: s.product?.sku ?? null,
         price: s.price,
         qty: s.qty,
+        remark: s.remark ?? null,
       })),
   }));
 }
@@ -762,13 +764,19 @@ export async function undoGachaCheck(slotId: string): Promise<void> {
 }
 
 // 슬롯 품목·가격 변경 (gacha_change RPC — 잔량이 있으면 매장 재고로 자동 회수)
-export async function changeGachaSlot(slotId: string, productId: string, price: number): Promise<void> {
+// remark(특이사항)는 RPC 밖에서 gacha_slots에 직접 반영 (gacha_change가 슬롯을 in-place update하므로 id 유지)
+export async function changeGachaSlot(slotId: string, productId: string, price: number, remark?: string | null): Promise<void> {
   const { error } = await client().rpc('gacha_change', {
     p_slot: slotId,
     p_product: productId,
     p_price: price,
   });
   if (error) throw error;
+  const { error: rErr } = await client()
+    .from('gacha_slots')
+    .update({ remark: remark?.trim() ? remark.trim() : null })
+    .eq('id', slotId);
+  if (rErr) throw rErr;
 }
 
 // 새 머신(bin) + 슬롯 일괄 등록
