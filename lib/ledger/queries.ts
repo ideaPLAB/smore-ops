@@ -35,6 +35,7 @@ export async function getProducts(): Promise<ProductRow[]> {
       .select('id,sku,product_code,barcode,name,order_unit,lead_time_days,safety_stock,active')
       .eq('active', true)
       .order('name')
+      .order('id') // 동명 상품 tiebreaker — range 페이징 안정화
       .range(offset, offset + PAGE - 1);
     if (error) throw error;
     const rows = (data ?? []) as ProductRow[];
@@ -433,7 +434,11 @@ export async function getFullStockBalance(): Promise<StockBalanceRow[]> {
   for (let offset = 0; ; offset += PAGE) {
     const { data, error } = await client()
       .from('v_stock_balance')
+      // ⚠️ range 페이징은 안정적 정렬이 없으면 페이지 경계에서 행이 누락/중복된다.
+      // product_id+location_id는 행마다 유일하므로 정렬 키로 사용해 전량을 빠짐없이 가져온다.
       .select('product_id,location_id,on_hand')
+      .order('product_id', { ascending: true })
+      .order('location_id', { ascending: true })
       .range(offset, offset + PAGE - 1);
     if (error) throw error;
     const rows = (data ?? []) as StockBalanceRow[];
@@ -959,6 +964,7 @@ export async function getAllProducts(): Promise<ProductRow[]> {
         .from('products')
         .select(PRODUCT_COLS)
         .order('name')
+        .order('id') // 동명 상품 tiebreaker — 병렬 range 페이징 안정화(행 누락 방지)
         .range(p * PAGE, p * PAGE + PAGE - 1),
     ),
   );
