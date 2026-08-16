@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations, getAllProducts, changeGachaSlot, createGachaMachine, getGachaSlotHistories } from '@/lib/ledger/queries';
+import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations, getAllProducts, changeGachaSlot, createGachaMachine, updateGachaMachine, deleteGachaMachine, getGachaSlotHistories } from '@/lib/ledger/queries';
 import type { GachaMachine, GachaSlot, GachaCheck, GachaSlotHistory } from '@/lib/ledger/queries';
 import type { LocationRow, ProductRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
@@ -214,14 +214,81 @@ function MachineRegisterModal({
   );
 }
 
-function MachineCard({ machine, onRefresh, onSaved, products, slotHistories }: {
+function MachineEditModal({
+  machine,
+  locations,
+  onClose,
+  onDone,
+}: {
   machine: GachaMachine;
+  locations: LocationRow[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [locationId, setLocationId] = useState(machine.location_id);
+  const [binCode, setBinCode] = useState(machine.bin_code);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+  const totalQty = machine.slots.reduce((s, sl) => s + sl.qty, 0);
+
+  async function save() {
+    if (!locationId) { setErr('매장을 선택해 주세요'); return; }
+    if (!binCode.trim()) { setErr('머신 코드를 입력해 주세요'); return; }
+    setSaving(true); setErr('');
+    try {
+      await updateGachaMachine(machine.bin_id, locationId, binCode.trim());
+      onDone();
+      onClose();
+    } catch (e: unknown) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background: 'white', borderRadius: 16, padding: 24, width: '90%', maxWidth: 380, boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+        <h2 style={{ margin: '0 0 14px', fontSize: '1.05rem' }}>머신 수정 — {machine.bin_code}</h2>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <label className="lg-label">매장</label>
+          <select className="lg-select" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+            {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+          <label className="lg-label">머신 코드</label>
+          <input className="lg-input" value={binCode} onChange={(e) => setBinCode(e.target.value)} placeholder="고유 식별 코드" />
+        </div>
+        {totalQty > 0 && (
+          <p style={{ margin: '10px 0 0', fontSize: '.75rem', color: 'var(--lg-rust)' }}>
+            ⚠️ 현재 머신에 재고 {totalQty}개가 있어요. 매장을 바꿔도 슬롯 재고는 그대로 따라갑니다.
+          </p>
+        )}
+        {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+          <button className="lg-btn-secondary" onClick={onClose}>취소</button>
+          <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px', marginTop: 0 }} disabled={saving} onClick={save}>
+            {saving ? '저장 중…' : '저장'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHistories }: {
+  machine: GachaMachine;
+  locations: LocationRow[];
   onRefresh: () => void;
   onSaved: (a: LastAction) => void;
   products: ProductRow[];
   slotHistories: Record<string, GachaSlotHistory[]>;
 }) {
   const [changeSlot, setChangeSlot] = useState<GachaSlot | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [refillActive, setRefillActive] = useState<Set<string>>(new Set());
   const [refillValues, setRefillValues] = useState<Record<string, string>>({});
   const [savingSlots, setSavingSlots] = useState<Set<string>>(new Set());
@@ -263,12 +330,32 @@ function MachineCard({ machine, onRefresh, onSaved, products, slotHistories }: {
     }
   }
 
+  async function handleDelete() {
+    const msg = totalQty > 0
+      ? `'${machine.bin_code}' 머신을 삭제할까요?\n현재 재고 ${totalQty}개가 남아 있어요. 삭제하면 목록에서 사라집니다.`
+      : `'${machine.bin_code}' 머신을 삭제할까요?`;
+    if (!confirm(msg)) return;
+    setDeleting(true); setErr('');
+    try {
+      await deleteGachaMachine(machine.bin_id);
+      onRefresh();
+    } catch (e: unknown) {
+      setErr((e as Error).message);
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="lg-card" style={{ padding: 0, overflow: 'hidden' }}>
-      <div className="lg-card-h" style={{ padding: '12px 16px' }}>
+      <div className="lg-card-h" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
         <span>{machine.bin_code}</span>
         <span style={{ marginLeft: 'auto', fontSize: '.8rem', color: 'var(--lg-muted)' }}>총 {totalQty}개</span>
+        <button className="lg-btn-secondary" style={{ padding: '4px 10px', fontSize: '.75rem', marginTop: 0, width: 'auto' }} onClick={() => setShowEdit(true)}>수정</button>
+        <button className="lg-btn-secondary" style={{ padding: '4px 10px', fontSize: '.75rem', marginTop: 0, width: 'auto', color: 'var(--lg-rust)' }} disabled={deleting} onClick={handleDelete}>{deleting ? '삭제 중…' : '삭제'}</button>
       </div>
+      {showEdit && (
+        <MachineEditModal machine={machine} locations={locations} onClose={() => setShowEdit(false)} onDone={onRefresh} />
+      )}
 
       {machine.slots.map((s) => (
         <div key={s.id} style={{ borderBottom: '1px solid var(--lg-line-soft)' }}>
@@ -540,7 +627,7 @@ export function GachaScreen() {
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(340px,1fr))', gap: 12, marginTop: 12 }}>
           {machines.map((m) => (
-            <MachineCard key={m.bin_id} machine={m} onRefresh={load} onSaved={handleSaved} products={products} slotHistories={slotHistories} />
+            <MachineCard key={m.bin_id} machine={m} locations={locations} onRefresh={load} onSaved={handleSaved} products={products} slotHistories={slotHistories} />
           ))}
         </div>
       )}

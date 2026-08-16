@@ -790,6 +790,24 @@ export async function createGachaMachine(
   if (slotsErr) throw slotsErr;
 }
 
+// 머신(bin) 정보 수정 — 매장 이동 · 코드 변경
+export async function updateGachaMachine(binId: string, locationId: string, binCode: string): Promise<void> {
+  const { error } = await client()
+    .from('bins')
+    .update({ location_id: locationId, code: binCode })
+    .eq('id', binId);
+  if (error) throw error;
+}
+
+// 머신 삭제 — 소프트 삭제(active=false)로 이력·슬롯 보존, 목록에서만 제거
+export async function deleteGachaMachine(binId: string): Promise<void> {
+  const { error } = await client()
+    .from('bins')
+    .update({ active: false })
+    .eq('id', binId);
+  if (error) throw error;
+}
+
 // 슬롯 품목변경 이력 조회 (gacha_slot_history)
 export interface GachaSlotHistory {
   id: string;
