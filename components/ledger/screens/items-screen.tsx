@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { getAllProducts, SupabaseMissingError } from '@/lib/ledger/queries';
-import type { ProductRow } from '@/lib/ledger/types';
+import { getAllProducts, getLocations, SupabaseMissingError } from '@/lib/ledger/queries';
+import type { ProductRow, LocationRow } from '@/lib/ledger/types';
 import { useRole } from '../role-context';
 
 interface ItemRowProps {
@@ -123,12 +123,22 @@ function ProductCreateModal({ onClose, onDone }: { onClose: () => void; onDone: 
   const [supplyType, setSupplyType] = useState('사입');
   const [barcode, setBarcode] = useState('');
   const [orderUnit, setOrderUnit] = useState('1');
+  const [initQty, setInitQty] = useState('');
+  const [initLocation, setInitLocation] = useState('');
+  const [locations, setLocations] = useState<LocationRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
+
+  useEffect(() => {
+    getLocations().then((ls) => setLocations(ls.filter((l) => l.type === 'store' || l.type === 'popup'))).catch(() => {});
+  }, []);
 
   async function save() {
     if (!sku.trim()) { setErr('품목코드를 입력해 주세요 (예: GC001)'); return; }
     if (!name.trim()) { setErr('품목명을 입력해 주세요'); return; }
+    const qty = Number(initQty);
+    if (initQty.trim() && (isNaN(qty) || qty < 0)) { setErr('초기재고 수량을 확인해 주세요'); return; }
+    if (qty > 0 && !initLocation) { setErr('초기재고를 넣을 매장을 선택해 주세요'); return; }
     setSaving(true); setErr('');
     try {
       const res = await fetch('/api/products/create', {
@@ -141,11 +151,14 @@ function ProductCreateModal({ onClose, onDone }: { onClose: () => void; onDone: 
           supply_type: supplyType.trim(),
           barcode: barcode.trim(),
           order_unit: Number(orderUnit) || 1,
+          init_qty: qty > 0 ? qty : 0,
+          init_location_id: qty > 0 ? initLocation : '',
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? '등록 실패');
-      onDone(`✅ 품목 등록 완료: ${sku.trim()} ${name.trim()}`);
+      const stockMsg = qty > 0 ? ` (초기재고 ${qty}개)` : '';
+      onDone(`✅ 품목 등록 완료: ${sku.trim()} ${name.trim()}${stockMsg}`);
       onClose();
     } catch (e: unknown) {
       setErr((e as Error).message);
@@ -181,6 +194,16 @@ function ProductCreateModal({ onClose, onDone }: { onClose: () => void; onDone: 
           <input className="lg-input" value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="바코드" />
           <label className="lg-label">발주단위</label>
           <input className="lg-input" type="number" min="1" value={orderUnit} onChange={(e) => setOrderUnit(e.target.value)} />
+          <div style={{ borderTop: '1px solid var(--lg-line)', margin: '4px 0 0', paddingTop: 10 }}>
+            <label className="lg-label">초기재고 (선택) — 가챠 보충하려면 매장에 재고가 먼저 잡혀야 해요</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input className="lg-input" type="number" min="0" value={initQty} onChange={(e) => setInitQty(e.target.value)} placeholder="수량" style={{ flex: '0 0 90px' }} />
+              <select className="lg-select" value={initLocation} onChange={(e) => setInitLocation(e.target.value)} style={{ flex: 1 }}>
+                <option value="">매장 선택</option>
+                {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            </div>
+          </div>
         </div>
         {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>

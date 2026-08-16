@@ -43,8 +43,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `이미 존재하는 품목코드입니다: ${sku}` }, { status: 409 });
     }
 
-    const { error } = await client.from('products').insert(row);
+    const { data: inserted, error } = await client
+      .from('products')
+      .insert(row)
+      .select('id')
+      .single();
     if (error) throw new Error(error.message ?? JSON.stringify(error));
+
+    // 초기재고 — 지정 매장에 재고조정(adjustment) 이벤트로 반영 (가챠 보충 전 매장 재고 확보)
+    const initQty = Number(body.init_qty);
+    const initLoc = String(body.init_location_id ?? '').trim();
+    if (!isNaN(initQty) && initQty > 0 && initLoc) {
+      const { error: evErr } = await client.from('inventory_events').insert({
+        event_type: 'adjustment',
+        product_id: inserted.id,
+        location_id: initLoc,
+        qty_delta: initQty,
+        source: 'webapp',
+        note: '직접등록 초기재고',
+      });
+      if (evErr) throw new Error(`상품은 등록됐으나 초기재고 반영 실패: ${evErr.message}`);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (e) {
