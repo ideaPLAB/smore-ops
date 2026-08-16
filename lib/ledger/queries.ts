@@ -683,17 +683,22 @@ export async function getGachaMachines(locationId?: string): Promise<GachaMachin
     bin_code: b.code,
     location_id: b.location_id,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    slots: (b.slots ?? []).map((s: any) => ({
-      id: s.id,
-      bin_id: b.id,
-      bin_code: b.code,
-      slot_no: s.slot_no,
-      product_id: s.product?.id ?? null,
-      product_name: s.product?.name ?? null,
-      sku: s.product?.sku ?? null,
-      price: s.price,
-      qty: s.qty,
-    })),
+    slots: (b.slots ?? [])
+      // 슬롯 번호(#1~#6) 고정 순서 — 품목변경 후에도 DB 반환순서에 흔들리지 않도록 정렬
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .slice()
+      .sort((a: any, z: any) => a.slot_no - z.slot_no)
+      .map((s: any) => ({
+        id: s.id,
+        bin_id: b.id,
+        bin_code: b.code,
+        slot_no: s.slot_no,
+        product_id: s.product?.id ?? null,
+        product_name: s.product?.name ?? null,
+        sku: s.product?.sku ?? null,
+        price: s.price,
+        qty: s.qty,
+      })),
   }));
 }
 
