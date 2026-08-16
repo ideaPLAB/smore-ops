@@ -50,18 +50,32 @@ export async function POST(req: NextRequest) {
       .single();
     if (error) throw new Error(error.message ?? JSON.stringify(error));
 
-    // 초기재고 — 지정 매장에 재고조정(adjustment) 이벤트로 반영 (가챠 보충 전 매장 재고 확보)
-    const initQty = Number(body.init_qty);
-    const initLoc = String(body.init_location_id ?? '').trim();
-    if (!isNaN(initQty) && initQty > 0 && initLoc) {
-      const { error: evErr } = await client.from('inventory_events').insert({
+    // 초기재고 — 매장별 재고조정(adjustment) 이벤트로 반영 (가챠 보충 전 매장 재고 확보)
+    // init_stocks: [{location_id, qty}] 배열 우선, 구버전 단일 init_qty/init_location_id도 호환
+    type Stock = { location_id: string; qty: number };
+    const stocks: Stock[] = Array.isArray(body.init_stocks)
+      ? (body.init_stocks as unknown[]).map((s) => {
+          const o = s as { location_id?: unknown; qty?: unknown };
+          return { location_id: String(o.location_id ?? '').trim(), qty: Number(o.qty) };
+        })
+      : [];
+    const legacyQty = Number(body.init_qty);
+    const legacyLoc = String(body.init_location_id ?? '').trim();
+    if (stocks.length === 0 && !isNaN(legacyQty) && legacyQty > 0 && legacyLoc) {
+      stocks.push({ location_id: legacyLoc, qty: legacyQty });
+    }
+    const evRows = stocks
+      .filter((s) => s.location_id && !isNaN(s.qty) && s.qty > 0)
+      .map((s) => ({
         event_type: 'adjustment',
         product_id: inserted.id,
-        location_id: initLoc,
-        qty_delta: initQty,
+        location_id: s.location_id,
+        qty_delta: s.qty,
         source: 'webapp',
         note: '직접등록 초기재고',
-      });
+      }));
+    if (evRows.length > 0) {
+      const { error: evErr } = await client.from('inventory_events').insert(evRows);
       if (evErr) throw new Error(`상품은 등록됐으나 초기재고 반영 실패: ${evErr.message}`);
     }
 

@@ -123,8 +123,7 @@ function ProductCreateModal({ onClose, onDone }: { onClose: () => void; onDone: 
   const [supplyType, setSupplyType] = useState('사입');
   const [barcode, setBarcode] = useState('');
   const [orderUnit, setOrderUnit] = useState('1');
-  const [initQty, setInitQty] = useState('');
-  const [initLocation, setInitLocation] = useState('');
+  const [stockByLoc, setStockByLoc] = useState<Record<string, string>>({});
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
@@ -136,9 +135,12 @@ function ProductCreateModal({ onClose, onDone }: { onClose: () => void; onDone: 
   async function save() {
     if (!sku.trim()) { setErr('품목코드를 입력해 주세요 (예: GC001)'); return; }
     if (!name.trim()) { setErr('품목명을 입력해 주세요'); return; }
-    const qty = Number(initQty);
-    if (initQty.trim() && (isNaN(qty) || qty < 0)) { setErr('초기재고 수량을 확인해 주세요'); return; }
-    if (qty > 0 && !initLocation) { setErr('초기재고를 넣을 매장을 선택해 주세요'); return; }
+    const stocks = Object.entries(stockByLoc)
+      .map(([location_id, v]) => ({ location_id, qty: Number(v) }))
+      .filter((s) => s.qty > 0);
+    if (Object.values(stockByLoc).some((v) => v.trim() && (isNaN(Number(v)) || Number(v) < 0))) {
+      setErr('초기재고 수량을 확인해 주세요'); return;
+    }
     setSaving(true); setErr('');
     try {
       const res = await fetch('/api/products/create', {
@@ -151,13 +153,13 @@ function ProductCreateModal({ onClose, onDone }: { onClose: () => void; onDone: 
           supply_type: supplyType.trim(),
           barcode: barcode.trim(),
           order_unit: Number(orderUnit) || 1,
-          init_qty: qty > 0 ? qty : 0,
-          init_location_id: qty > 0 ? initLocation : '',
+          init_stocks: stocks,
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? '등록 실패');
-      const stockMsg = qty > 0 ? ` (초기재고 ${qty}개)` : '';
+      const total = stocks.reduce((s, x) => s + x.qty, 0);
+      const stockMsg = total > 0 ? ` (초기재고 ${total}개 / ${stocks.length}개 매장)` : '';
       onDone(`✅ 품목 등록 완료: ${sku.trim()} ${name.trim()}${stockMsg}`);
       onClose();
     } catch (e: unknown) {
@@ -195,13 +197,22 @@ function ProductCreateModal({ onClose, onDone }: { onClose: () => void; onDone: 
           <label className="lg-label">발주단위</label>
           <input className="lg-input" type="number" min="1" value={orderUnit} onChange={(e) => setOrderUnit(e.target.value)} />
           <div style={{ borderTop: '1px solid var(--lg-line)', margin: '4px 0 0', paddingTop: 10 }}>
-            <label className="lg-label">초기재고 (선택) — 가챠 보충하려면 매장에 재고가 먼저 잡혀야 해요</label>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input className="lg-input" type="number" min="0" value={initQty} onChange={(e) => setInitQty(e.target.value)} placeholder="수량" style={{ flex: '0 0 90px' }} />
-              <select className="lg-select" value={initLocation} onChange={(e) => setInitLocation(e.target.value)} style={{ flex: 1 }}>
-                <option value="">매장 선택</option>
-                {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
+            <label className="lg-label">초기재고 (선택) — 매장별로 수량 입력, 필요한 매장만 채우면 돼요</label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+              {locations.map((l) => (
+                <div key={l.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ flex: 1, fontSize: '.83rem' }}>{l.name}</span>
+                  <input
+                    className="lg-input"
+                    type="number"
+                    min="0"
+                    value={stockByLoc[l.id] ?? ''}
+                    onChange={(e) => setStockByLoc((prev) => ({ ...prev, [l.id]: e.target.value }))}
+                    placeholder="0"
+                    style={{ flex: '0 0 100px' }}
+                  />
+                </div>
+              ))}
             </div>
           </div>
         </div>
