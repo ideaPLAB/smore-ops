@@ -417,11 +417,21 @@ export interface DispatchOrder {
 // ── 재고 현황 ──────────────────────────────────────────────────────────────────
 
 export async function getFullStockBalance(): Promise<StockBalanceRow[]> {
-  const { data, error } = await client()
-    .from('v_stock_balance')
-    .select('product_id,location_id,on_hand');
-  if (error) throw error;
-  return (data ?? []) as StockBalanceRow[];
+  // PostgREST는 요청당 기본 1000행까지만 반환한다. 재고 잔액 행이 1000을 넘으면
+  // (기초재고 적재 후 수천 행) 페이지를 이어서 전부 가져와야 한다.
+  const PAGE = 1000;
+  const all: StockBalanceRow[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await client()
+      .from('v_stock_balance')
+      .select('product_id,location_id,on_hand')
+      .range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as StockBalanceRow[];
+    all.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return all;
 }
 
 // ── 입고검수 ──────────────────────────────────────────────────────────────────
