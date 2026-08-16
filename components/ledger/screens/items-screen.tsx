@@ -230,7 +230,7 @@ export function ItemsScreen() {
   const supplyTypes = Array.from(new Set(items.map((i) => i.supply_type).filter(Boolean))).sort() as string[];
 
   const filtered = items.filter((i) => {
-    if (vendorFilter && i.vendor_name !== vendorFilter) return false;
+    if (vendorFilter && !(i.vendor_name ?? '').toLowerCase().includes(vendorFilter.toLowerCase())) return false;
     if (supplyFilter && i.supply_type !== supplyFilter) return false;
     if (!searchQ.trim()) return true;
     const q = searchQ.toLowerCase();
@@ -310,10 +310,18 @@ export function ItemsScreen() {
                 onChange={(e) => setSearchQ(e.target.value)}
               />
             </div>
-            <select className="lg-input" value={vendorFilter} onChange={(e) => setVendorFilter(e.target.value)} style={{ maxWidth: 180 }}>
-              <option value="">전체 업체</option>
-              {vendors.map((v) => <option key={v} value={v}>{v}</option>)}
-            </select>
+            <input
+              type="search"
+              className="lg-input"
+              list="vendor-list"
+              placeholder="업체 검색 (전체)"
+              value={vendorFilter}
+              onChange={(e) => setVendorFilter(e.target.value)}
+              style={{ maxWidth: 180 }}
+            />
+            <datalist id="vendor-list">
+              {vendors.map((v) => <option key={v} value={v} />)}
+            </datalist>
             <select className="lg-input" value={supplyFilter} onChange={(e) => setSupplyFilter(e.target.value)} style={{ maxWidth: 120 }}>
               <option value="">전체 공급</option>
               {supplyTypes.map((s) => <option key={s} value={s}>{s}</option>)}
