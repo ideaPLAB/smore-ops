@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations, getAllProducts, changeGachaSlot, createGachaMachine, updateGachaMachine, deleteGachaMachine, getGachaSlotHistories } from '@/lib/ledger/queries';
+import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations, getAllProducts, changeGachaSlot, createGachaMachine, updateGachaMachine, deleteGachaMachine, setGachaStockAsOf, getGachaSlotHistories } from '@/lib/ledger/queries';
 import type { GachaMachine, GachaSlot, GachaCheck, GachaSlotHistory } from '@/lib/ledger/queries';
 import type { LocationRow, ProductRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
@@ -230,6 +230,7 @@ function MachineEditModal({
 }) {
   const [locationId, setLocationId] = useState(machine.location_id);
   const [binCode, setBinCode] = useState(machine.bin_code);
+  const [stockDate, setStockDate] = useState(machine.stock_as_of ? machine.stock_as_of.slice(0, 10) : '');
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const totalQty = machine.slots.reduce((s, sl) => s + sl.qty, 0);
@@ -240,6 +241,10 @@ function MachineEditModal({
     setSaving(true); setErr('');
     try {
       await updateGachaMachine(machine.bin_id, locationId, binCode.trim());
+      const prevDate = machine.stock_as_of ? machine.stock_as_of.slice(0, 10) : '';
+      if (stockDate !== prevDate) {
+        await setGachaStockAsOf(machine.bin_id, stockDate ? new Date(stockDate + 'T12:00:00').toISOString() : null);
+      }
       onDone();
       onClose();
     } catch (e: unknown) {
@@ -263,6 +268,8 @@ function MachineEditModal({
           </select>
           <label className="lg-label">머신 코드</label>
           <input className="lg-input" value={binCode} onChange={(e) => setBinCode(e.target.value)} placeholder="고유 식별 코드" />
+          <label className="lg-label">재고 확인 기준일 (보충하면 자동 갱신)</label>
+          <input className="lg-input" type="date" value={stockDate} onChange={(e) => setStockDate(e.target.value)} />
         </div>
         {totalQty > 0 && (
           <p style={{ margin: '10px 0 0', fontSize: '.75rem', color: 'var(--lg-rust)' }}>
@@ -322,6 +329,8 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
     try {
       // counted = slot.qty (현재 잔량 유지, 판매추정 0), 감모·실수금 없음
       await runGachaCheck(slot.id, slot.qty, refill, 0, null, null);
+      // 보충하면 이 머신의 재고 확인 시점을 자동 갱신 (A안)
+      try { await setGachaStockAsOf(slot.bin_id, new Date().toISOString()); } catch { /* 시점 갱신 실패는 무시 */ }
       onSaved({ slot, prevQty: slot.qty });
       setRefillActive((prev) => { const n = new Set(prev); n.delete(slot.id); return n; });
       setRefillValues((prev) => { const n = { ...prev }; delete n[slot.id]; return n; });
@@ -370,6 +379,11 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
         <span style={{ marginLeft: 'auto', fontSize: '.8rem', color: 'var(--lg-muted)' }}>총 {totalQty}개</span>
         <button className="lg-btn-secondary" style={{ padding: '4px 10px', fontSize: '.75rem', marginTop: 0, width: 'auto' }} onClick={() => setShowEdit(true)}>수정</button>
         <button className="lg-btn-secondary" style={{ padding: '4px 10px', fontSize: '.75rem', marginTop: 0, width: 'auto', color: 'var(--lg-rust)' }} disabled={deleting} onClick={handleDelete}>{deleting ? '삭제 중…' : '삭제'}</button>
+      </div>
+      <div style={{ padding: '6px 16px', fontSize: '.74rem', color: 'var(--lg-muted)', borderBottom: '1px solid var(--lg-line-soft)', background: 'var(--lg-bg)' }}>
+        📅 재고 기준: {machine.stock_as_of
+          ? new Date(machine.stock_as_of).toLocaleString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+          : <span style={{ color: 'var(--lg-faint)' }}>미설정</span>}
       </div>
       {showEdit && (
         <MachineEditModal machine={machine} locations={locations} onClose={() => setShowEdit(false)} onDone={onRefresh} />

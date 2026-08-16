@@ -667,6 +667,7 @@ export interface GachaMachine {
   bin_id: string;
   bin_code: string;
   location_id: string;
+  stock_as_of: string | null; // 재고 확인 기준 시점 (보충/점검 시 자동 갱신, 초기값은 수동)
   slots: GachaSlot[];
 }
 
@@ -690,7 +691,7 @@ export async function getGachaMachines(locationId?: string): Promise<GachaMachin
   let q = client()
     .from('bins')
     .select(
-      `id,code,location_id,
+      `id,code,location_id,stock_as_of,
        slots:gacha_slots(
          id,slot_no,price,qty,remark,
          product:products(id,name,sku)
@@ -707,6 +708,7 @@ export async function getGachaMachines(locationId?: string): Promise<GachaMachin
     bin_id: b.id,
     bin_code: b.code,
     location_id: b.location_id,
+    stock_as_of: b.stock_as_of ?? null,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     slots: (b.slots ?? [])
       // 슬롯 번호(#1~#6) 고정 순서 — 품목변경 후에도 DB 반환순서에 흔들리지 않도록 정렬
@@ -841,6 +843,15 @@ export async function deleteGachaMachine(binId: string): Promise<void> {
   const { error } = await client()
     .from('bins')
     .update({ active: false })
+    .eq('id', binId);
+  if (error) throw error;
+}
+
+// 머신 재고 확인 기준 시점 설정 (수동 지정 또는 보충 시 now()로 자동 갱신). null이면 미설정.
+export async function setGachaStockAsOf(binId: string, isoOrNull: string | null): Promise<void> {
+  const { error } = await client()
+    .from('bins')
+    .update({ stock_as_of: isoOrNull })
     .eq('id', binId);
   if (error) throw error;
 }
