@@ -135,12 +135,15 @@ function ProductEditModal({ item, onClose, onDone }: { item: ProductRow; onClose
   const [barcode, setBarcode] = useState(item.barcode ?? '');
   const [vendorName, setVendorName] = useState(item.vendor_name ?? '');
   const [supplyType, setSupplyType] = useState(item.supply_type ?? '');
+  const [orderUnit, setOrderUnit] = useState(String(item.order_unit));
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
 
   async function save() {
     if (!sku.trim()) { setErr('품목코드를 입력해 주세요'); return; }
     if (!name.trim()) { setErr('품목명을 입력해 주세요'); return; }
+    const unitNum = parseInt(orderUnit, 10);
+    if (isNaN(unitNum) || unitNum < 1) { setErr('발주단위는 1 이상의 숫자를 입력해 주세요'); return; }
     setSaving(true); setErr('');
     try {
       const res = await fetch('/api/products/update', {
@@ -153,6 +156,7 @@ function ProductEditModal({ item, onClose, onDone }: { item: ProductRow; onClose
           barcode: barcode.trim(),
           vendor_name: vendorName.trim(),
           supply_type: supplyType.trim(),
+          order_unit: unitNum,
         }),
       });
       const json = await res.json();
@@ -192,6 +196,8 @@ function ProductEditModal({ item, onClose, onDone }: { item: ProductRow; onClose
             <option value="자사">자사</option>
             <option value="위탁">위탁</option>
           </select>
+          <label className="lg-label">발주단위</label>
+          <input className="lg-input" type="number" min="1" value={orderUnit} onChange={(e) => setOrderUnit(e.target.value)} />
         </div>
         {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
