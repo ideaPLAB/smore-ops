@@ -330,7 +330,7 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
     setErr('');
     try {
       // counted = slot.qty (현재 잔량 유지, 판매추정 0), 감모·실수금 없음
-      await runGachaCheck(slot.id, slot.qty, refill, 0, null, null, session?.username ?? null);
+      await runGachaCheck(slot.id, slot.qty, refill, 0, null, null, session?.id ?? null);
       // 보충하면 이 머신의 재고 확인 시점을 자동 갱신 (A안)
       try { await setGachaStockAsOf(slot.bin_id, new Date().toISOString()); } catch { /* 시점 갱신 실패는 무시 */ }
       onSaved({ slot, prevQty: slot.qty });
