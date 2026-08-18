@@ -9,11 +9,13 @@ interface ItemRowProps {
   item: ProductRow;
   onRefresh: () => void;
   canDelete: boolean;
+  canEdit: boolean;
   selected: boolean;
   onSelect: (id: string, checked: boolean) => void;
+  onEdit: (item: ProductRow) => void;
 }
 
-function ItemRow({ item, onRefresh, canDelete, selected, onSelect }: ItemRowProps) {
+function ItemRow({ item, onRefresh, canDelete, canEdit, selected, onSelect, onEdit }: ItemRowProps) {
   const [editUnit, setEditUnit] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
@@ -112,7 +114,94 @@ function ItemRow({ item, onRefresh, canDelete, selected, onSelect }: ItemRowProp
         </label>
         {err && <div style={{ fontSize: '.7rem', color: 'var(--lg-rust)', marginTop: 2 }}>{err}</div>}
       </td>
+      {canEdit && (
+        <td style={{ padding: '8px', textAlign: 'center' }}>
+          <button
+            type="button"
+            style={{ background: 'none', border: '1px solid var(--lg-line)', borderRadius: 6, cursor: 'pointer', padding: '3px 8px', fontSize: '.75rem', color: 'var(--lg-muted)' }}
+            onClick={() => onEdit(item)}
+          >
+            편집
+          </button>
+        </td>
+      )}
     </tr>
+  );
+}
+
+function ProductEditModal({ item, onClose, onDone }: { item: ProductRow; onClose: () => void; onDone: (msg: string) => void }) {
+  const [sku, setSku] = useState(item.sku);
+  const [name, setName] = useState(item.name);
+  const [barcode, setBarcode] = useState(item.barcode ?? '');
+  const [vendorName, setVendorName] = useState(item.vendor_name ?? '');
+  const [supplyType, setSupplyType] = useState(item.supply_type ?? '');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function save() {
+    if (!sku.trim()) { setErr('품목코드를 입력해 주세요'); return; }
+    if (!name.trim()) { setErr('품목명을 입력해 주세요'); return; }
+    setSaving(true); setErr('');
+    try {
+      const res = await fetch('/api/products/update', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: item.id,
+          sku: sku.trim(),
+          name: name.trim(),
+          barcode: barcode.trim(),
+          vendor_name: vendorName.trim(),
+          supply_type: supplyType.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? '저장 실패');
+      onDone(`✅ ${name.trim()} 수정 완료`);
+      onClose();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background: 'white', borderRadius: 16, padding: 24, width: '90%', maxWidth: 400, boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: '1.05rem' }}>상품 정보 편집</h2>
+        <p style={{ margin: '0 0 14px', fontSize: '.78rem', color: 'var(--lg-rust)', background: '#FFF3E0', borderRadius: 6, padding: '6px 10px' }}>
+          ⚠ 이카운트 상품은 다음 엑셀 업로드 시 이카운트 원본으로 덮어씌워질 수 있습니다.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <label className="lg-label">품목코드 *</label>
+          <input className="lg-input" value={sku} onChange={(e) => setSku(e.target.value)} />
+          <label className="lg-label">상품명 *</label>
+          <input className="lg-input" value={name} onChange={(e) => setName(e.target.value)} />
+          <label className="lg-label">바코드</label>
+          <input className="lg-input" value={barcode} onChange={(e) => setBarcode(e.target.value)} placeholder="없으면 비워두세요" />
+          <label className="lg-label">공급업체</label>
+          <input className="lg-input" value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="예: [BN]비엔비퍼즐" />
+          <label className="lg-label">공급구분</label>
+          <select className="lg-select" value={supplyType} onChange={(e) => setSupplyType(e.target.value)}>
+            <option value="">미지정</option>
+            <option value="사입">사입</option>
+            <option value="자사">자사</option>
+            <option value="위탁">위탁</option>
+          </select>
+        </div>
+        {err && <p className="lg-err" style={{ marginTop: 10, fontSize: '.8rem' }}>{err}</p>}
+        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+          <button className="lg-btn-secondary" onClick={onClose}>취소</button>
+          <button className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px', marginTop: 0 }} disabled={saving} onClick={save}>
+            {saving ? '저장 중…' : '저장'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -231,6 +320,7 @@ function ProductCreateModal({ onClose, onDone }: { onClose: () => void; onDone: 
 export function ItemsScreen() {
   const { role } = useRole();
   const canDelete = role === 'admin' || role === 'hq';
+  const canEdit = role === 'admin' || role === 'hq';
 
   const [items, setItems] = useState<ProductRow[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'noenv' | 'error'>('loading');
@@ -242,6 +332,7 @@ export function ItemsScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
+  const [editItem, setEditItem] = useState<ProductRow | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -410,6 +501,14 @@ export function ItemsScreen() {
         />
       )}
 
+      {editItem && (
+        <ProductEditModal
+          item={editItem}
+          onClose={() => setEditItem(null)}
+          onDone={(msg) => { setUploadMsg(msg); setEditItem(null); load(); }}
+        />
+      )}
+
       {uploadMsg && (
         <div className="lg-card" style={{ background: '#FFF8E1', border: '1px solid #FFD54F', marginBottom: 12, padding: '10px 14px', fontSize: '.83rem' }}>
           ℹ️ {uploadMsg}
@@ -460,7 +559,7 @@ export function ItemsScreen() {
           </div>
 
           <div className="lg-card" style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.84rem', minWidth: canDelete ? 860 : 800 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.84rem', minWidth: canDelete ? (canEdit ? 920 : 860) : (canEdit ? 860 : 800) }}>
               <thead>
                 <tr>
                   {canDelete && (
@@ -481,12 +580,13 @@ export function ItemsScreen() {
                   <th style={{ textAlign: 'left', padding: '10px 8px', color: 'var(--lg-muted)', fontWeight: 600 }}>공급구분</th>
                   <th style={{ textAlign: 'center', padding: '10px 8px', color: 'var(--lg-muted)', fontWeight: 600 }}>발주단위</th>
                   <th style={{ textAlign: 'center', padding: '10px 8px', color: 'var(--lg-muted)', fontWeight: 600 }}>발주가능</th>
+                  {canEdit && <th style={{ textAlign: 'center', padding: '10px 8px', color: 'var(--lg-muted)', fontWeight: 600 }}></th>}
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={canDelete ? 9 : 8} style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--lg-muted)' }}>
+                    <td colSpan={canDelete ? (canEdit ? 10 : 9) : (canEdit ? 9 : 8)} style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--lg-muted)' }}>
                       검색 결과 없음
                     </td>
                   </tr>
@@ -497,13 +597,15 @@ export function ItemsScreen() {
                     item={i}
                     onRefresh={load}
                     canDelete={canDelete}
+                    canEdit={canEdit}
                     selected={selectedIds.has(i.id)}
                     onSelect={handleSelect}
+                    onEdit={setEditItem}
                   />
                 ))}
                 {hiddenCount > 0 && (
                   <tr>
-                    <td colSpan={canDelete ? 9 : 8} style={{ padding: '14px 16px', textAlign: 'center', color: 'var(--lg-muted)', fontSize: '.8rem' }}>
+                    <td colSpan={canDelete ? (canEdit ? 10 : 9) : (canEdit ? 9 : 8)} style={{ padding: '14px 16px', textAlign: 'center', color: 'var(--lg-muted)', fontSize: '.8rem' }}>
                       +{hiddenCount.toLocaleString()}개 더 있음 · 위 검색/필터로 좁혀서 확인하세요
                     </td>
                   </tr>
