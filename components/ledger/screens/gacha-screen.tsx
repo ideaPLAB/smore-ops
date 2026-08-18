@@ -330,7 +330,7 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
     setErr('');
     try {
       // counted = slot.qty (현재 잔량 유지, 판매추정 0), 감모·실수금 없음
-      await runGachaCheck(slot.id, slot.qty, refill, 0, null, null, session?.id ?? null);
+      await runGachaCheck(slot.id, slot.qty, refill, 0, null, null, session?.display_name ?? null);
       // 보충하면 이 머신의 재고 확인 시점을 자동 갱신 (A안)
       try { await setGachaStockAsOf(slot.bin_id, new Date().toISOString()); } catch { /* 시점 갱신 실패는 무시 */ }
       onSaved({ slot, prevQty: slot.qty });
@@ -528,6 +528,9 @@ function HistoryRow({ c }: { c: GachaCheck }) {
       {c.sold_est > 0 && <span style={{ color: 'var(--lg-hazel)' }}>판매추정 {c.sold_est}개 / {c.revenue_est.toLocaleString()}원</span>}
       {c.shrinkage > 0 && (
         <span style={{ color: 'var(--lg-rust)', fontSize: '.75rem' }}>감모 {c.shrinkage} ({c.shrinkage_reason})</span>
+      )}
+      {c.checked_by_name && (
+        <span style={{ color: 'var(--lg-muted)', fontSize: '.75rem' }}>— {c.checked_by_name}</span>
       )}
     </div>
   );

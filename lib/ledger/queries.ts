@@ -685,6 +685,7 @@ export interface GachaCheck {
   shrinkage_reason: string | null;
   cash_counted: number | null;
   checked_at: string;
+  checked_by_name?: string | null;
 }
 
 export async function getGachaMachines(locationId?: string): Promise<GachaMachine[]> {
@@ -734,7 +735,7 @@ export async function getGachaChecks(locationId?: string): Promise<GachaCheck[]>
   const q = client()
     .from('gacha_checks')
     .select(
-      `id,slot_id,counted,refill,sold_est,revenue_est,shrinkage,shrinkage_reason,cash_counted,checked_at,
+      `id,slot_id,counted,refill,sold_est,revenue_est,shrinkage,shrinkage_reason,cash_counted,checked_at,checked_by_name,
        slot:gacha_slots(slot_no,bin:bins(code),product:products(name))`
     )
     .order('checked_at', { ascending: false })
@@ -760,6 +761,7 @@ export async function getGachaChecks(locationId?: string): Promise<GachaCheck[]>
     shrinkage_reason: c.shrinkage_reason,
     cash_counted: c.cash_counted,
     checked_at: c.checked_at,
+    checked_by_name: c.checked_by_name ?? null,
   }));
 }
 
@@ -783,7 +785,7 @@ export async function runGachaCheck(
   });
   if (error) throw error;
   if (actor) {
-    // RPC가 만든 최신 점검 레코드에 checked_by 기록
+    // RPC가 만든 최신 점검 레코드에 checked_by_name 기록
     const { data: latest } = await sb
       .from('gacha_checks')
       .select('id')
@@ -792,7 +794,7 @@ export async function runGachaCheck(
       .limit(1)
       .maybeSingle();
     if (latest?.id) {
-      await sb.from('gacha_checks').update({ checked_by: actor }).eq('id', latest.id);
+      await sb.from('gacha_checks').update({ checked_by_name: actor }).eq('id', latest.id);
     }
   }
 }
