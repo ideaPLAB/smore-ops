@@ -5,6 +5,7 @@ import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLoc
 import type { GachaMachine, GachaSlot, GachaCheck, GachaSlotHistory } from '@/lib/ledger/queries';
 import type { LocationRow, ProductRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
+import { useRole } from '../role-context';
 
 interface LastAction {
   slot: GachaSlot;
@@ -296,6 +297,7 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
   products: ProductRow[];
   slotHistories: Record<string, GachaSlotHistory[]>;
 }) {
+  const { session } = useRole();
   const [changeSlot, setChangeSlot] = useState<GachaSlot | null>(null);
   const [showEdit, setShowEdit] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -328,7 +330,7 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
     setErr('');
     try {
       // counted = slot.qty (현재 잔량 유지, 판매추정 0), 감모·실수금 없음
-      await runGachaCheck(slot.id, slot.qty, refill, 0, null, null);
+      await runGachaCheck(slot.id, slot.qty, refill, 0, null, null, session?.username ?? null);
       // 보충하면 이 머신의 재고 확인 시점을 자동 갱신 (A안)
       try { await setGachaStockAsOf(slot.bin_id, new Date().toISOString()); } catch { /* 시점 갱신 실패는 무시 */ }
       onSaved({ slot, prevQty: slot.qty });

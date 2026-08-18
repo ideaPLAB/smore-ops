@@ -770,8 +770,10 @@ export async function runGachaCheck(
   shrinkage: number,
   shrinkageReason: string | null,
   cashCounted: number | null,
+  actor?: string | null,
 ): Promise<void> {
-  const { error } = await client().rpc('gacha_check', {
+  const sb = client();
+  const { error } = await sb.rpc('gacha_check', {
     p_slot: slotId,
     p_counted: counted,
     p_refill: refill,
@@ -780,6 +782,19 @@ export async function runGachaCheck(
     p_cash_counted: cashCounted,
   });
   if (error) throw error;
+  if (actor) {
+    // RPC가 만든 최신 점검 레코드에 checked_by 기록
+    const { data: latest } = await sb
+      .from('gacha_checks')
+      .select('id')
+      .eq('slot_id', slotId)
+      .order('checked_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latest?.id) {
+      await sb.from('gacha_checks').update({ checked_by: actor }).eq('id', latest.id);
+    }
+  }
 }
 
 // 가챠 점검 되돌리기 — 슬롯의 가장 최근 점검 1건을 서버에서 롤백
