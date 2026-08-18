@@ -130,7 +130,7 @@ function Small({ children }: { children: ReactNode }) {
 
 /* ── 업데이트 로그 — 새 배포/변경 시 맨 위에 추가 ── */
 
-function Bullets({ items }: { items: string[] }) {
+function Bullets({ items }: { items: (string | ReactNode)[] }) {
   return (
     <ul style={{ margin: '4px 0 0', paddingLeft: 18, lineHeight: 1.85, fontSize: '.92rem' }}>
       {items.map((t, i) => <li key={i}>{t}</li>)}
@@ -140,7 +140,7 @@ function Bullets({ items }: { items: string[] }) {
 
 const UPDATES: { date: string; text: ReactNode }[] = [
   { date: '2026-08-18', text: <Bullets items={[
-    '상품 편집 기능 추가: 품목코드·상품명·바코드·공급업체·공급구분·발주단위 수정 가능 (본사·마스터 전용). 이카운트 상품도 수정 가능하나 다음 엑셀 업로드 시 원본으로 덮어씌워질 수 있음',
+    <>상품 편집 기능 추가: 품목코드·상품명·바코드·공급업체·공급구분·발주단위 수정 가능 (본사·마스터 전용)<br />이카운트 상품도 수정 가능하나 다음 엑셀 업로드 시 원본으로 덮어씌워질 수 있음</>,
     '재고조정 기능 추가: 재고현황에서 재고 셀 클릭 → 실사수량·기준일·사유 입력 → 조정 이벤트로 자동 반영 (본사·마스터 전용)',
     '가챠 보충 변경자 기록: 보충 시 로그인한 사람 이름이 가챠 이력에 함께 표시됨',
   ]} /> },
