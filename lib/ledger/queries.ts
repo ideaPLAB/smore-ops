@@ -698,7 +698,8 @@ export async function getGachaMachines(locationId?: string): Promise<GachaMachin
          product:products(id,name,sku)
        )`
     )
-    .eq('active', true);
+    .eq('active', true)
+    .order('code', { ascending: true });
   if (locationId) q = q.eq('location_id', locationId);
   const { data, error } = await q;
   if (error) throw error;
