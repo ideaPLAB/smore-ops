@@ -107,6 +107,7 @@ function SlotChangeModal({
     if (!productId) { setErr('품목을 선택해 주세요'); return; }
     const p = Number(price);
     if (isNaN(p) || p < 0) { setErr('판매가를 확인해 주세요'); return; }
+    if (slot.qty > 0 && !window.confirm(`잔량 ${slot.qty}개는 판매(소멸) 처리됩니다.\n재고로 돌아가지 않습니다. 계속하시겠습니까?`)) return;
     setSaving(true); setErr('');
     try {
       await changeGachaSlot(slot.id, productId, p, remark);
@@ -128,7 +129,7 @@ function SlotChangeModal({
         <h2 style={{ margin: '0 0 4px', fontSize: '1.05rem' }}>품목변경 — {slot.bin_code} #{slot.slot_no}</h2>
         {slot.qty > 0 && (
           <p style={{ margin: '0 0 14px', fontSize: '.8rem', color: 'var(--lg-hazel)' }}>
-            ⚠ 잔량 {slot.qty}개가 매장 재고로 자동 회수됩니다
+            ⚠ 잔량 {slot.qty}개는 품목 변경 시 판매(소멸) 처리됩니다. 재고로 돌아가지 않습니다.
           </p>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
