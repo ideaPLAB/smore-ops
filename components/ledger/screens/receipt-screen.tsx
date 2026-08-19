@@ -18,7 +18,7 @@ const BarcodeScanner = dynamic(
   { ssr: false },
 );
 
-const DIFF_REASONS = ['수량 부족', '파손', '미발송', '이미 수령 완료', '기타'];
+const DIFF_REASONS = ['물류 오출고', '수량 부족', '파손', '미발송', '이미 수령 완료', '기타'];
 const NOORDER_SOURCES = ['전표 누락', '긴급 조달', '기타'];
 
 function DiffRow({ line, onSaved, locked }: { line: InboundLine; onSaved: () => void; locked?: boolean }) {
