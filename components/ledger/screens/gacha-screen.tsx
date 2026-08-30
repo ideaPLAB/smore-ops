@@ -304,6 +304,8 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
   const [deleting, setDeleting] = useState(false);
   const [refillActive, setRefillActive] = useState<Set<string>>(new Set());
   const [refillValues, setRefillValues] = useState<Record<string, string>>({});
+  const [recoverActive, setRecoverActive] = useState<Set<string>>(new Set());
+  const [recoverValues, setRecoverValues] = useState<Record<string, string>>({});
   const [savingSlots, setSavingSlots] = useState<Set<string>>(new Set());
   const [historyOpen, setHistoryOpen] = useState(false);
   const [err, setErr] = useState('');
@@ -360,15 +362,29 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
     }
   }
 
-  // 슬롯 회수 (위치이동용) — 잔량을 매장 재고로 되돌리고 슬롯을 비운다. 판매 아님.
-  async function recoverSlot(slot: GachaSlot) {
-    if (slot.qty <= 0) { setErr('회수할 잔량이 없어요'); return; }
-    if (!confirm(`#${slot.slot_no} 슬롯의 잔량 ${slot.qty}개를 매장 재고로 회수할까요?\n(판매 아님 — 슬롯 위치이동용. 다른 슬롯에서 '보충'으로 옮기면 됩니다)`)) return;
+  // 슬롯 회수 인라인 입력 토글 (위치이동용) — 기본값은 전량, 일부만 회수도 가능
+  function toggleRecover(slot: GachaSlot) {
+    setRecoverActive((prev) => {
+      const next = new Set(prev);
+      if (next.has(slot.id)) next.delete(slot.id);
+      else { next.add(slot.id); setRecoverValues((v) => ({ ...v, [slot.id]: String(slot.qty) })); }
+      return next;
+    });
+    setErr('');
+  }
+
+  // 슬롯 회수 (위치이동용) — 입력 수량만큼 매장 재고로 되돌린다. 판매 아님.
+  async function saveRecover(slot: GachaSlot) {
+    const qty = Number(recoverValues[slot.id] || '0');
+    if (!qty || qty <= 0) { setErr('회수 수량을 입력해 주세요'); return; }
+    if (qty > slot.qty) { setErr(`회수 수량은 잔량 ${slot.qty}개를 넘을 수 없어요`); return; }
     setSavingSlots((prev) => new Set(prev).add(slot.id));
     setErr('');
     try {
-      await recoverGachaSlot(slot.id);
+      await recoverGachaSlot(slot.id, qty);
       onSaved({ slot, prevQty: slot.qty });
+      setRecoverActive((prev) => { const n = new Set(prev); n.delete(slot.id); return n; });
+      setRecoverValues((prev) => { const n = { ...prev }; delete n[slot.id]; return n; });
       onRefresh();
     } catch (e: unknown) {
       setErr((e as Error).message);
@@ -451,11 +467,11 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
             </button>
             {s.qty > 0 && (
               <button
-                className="lg-btn-ghost"
-                style={{ padding: '4px 12px', fontSize: '.78rem' }}
+                className={recoverActive.has(s.id) ? 'lg-btn-main' : 'lg-btn-ghost'}
+                style={{ padding: '4px 12px', fontSize: '.78rem', marginTop: 0, width: 'auto' }}
                 disabled={savingSlots.has(s.id)}
-                onClick={() => recoverSlot(s)}
-                title="잔량을 매장 재고로 회수합니다 (판매 아님 — 슬롯 위치이동용)"
+                onClick={() => toggleRecover(s)}
+                title="잔량(일부 또는 전량)을 매장 재고로 회수합니다 (판매 아님 — 슬롯 위치이동용)"
               >
                 회수
               </button>
@@ -498,6 +514,38 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
                 {savingSlots.has(s.id) ? '저장 중…' : '저장'}
               </button>
               <button className="lg-btn-secondary" onClick={() => toggleRefill(s.id)}>취소</button>
+            </div>
+          )}
+          {/* 회수 인라인 입력 (위치이동용 — 일부/전량) */}
+          {recoverActive.has(s.id) && (
+            <div style={{
+              padding: '8px 16px 10px',
+              background: 'var(--lg-surface)',
+              borderTop: '1px solid var(--lg-line-soft)',
+              display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap',
+            }}>
+              <span style={{ fontSize: '.74rem', color: 'var(--lg-muted)' }}>매장 재고로 회수 (잔량 {s.qty})</span>
+              <input
+                className="lg-input"
+                type="number"
+                min="1"
+                max={s.qty}
+                placeholder="회수 수량"
+                value={recoverValues[s.id] ?? ''}
+                onChange={(e) => setRecoverValues((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                style={{ width: 110 }}
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') saveRecover(s); if (e.key === 'Escape') toggleRecover(s); }}
+              />
+              <button
+                className="lg-btn-main"
+                style={{ width: 'auto', padding: '8px 16px', marginTop: 0 }}
+                disabled={savingSlots.has(s.id)}
+                onClick={() => saveRecover(s)}
+              >
+                {savingSlots.has(s.id) ? '회수 중…' : '회수'}
+              </button>
+              <button className="lg-btn-secondary" onClick={() => toggleRecover(s)}>취소</button>
             </div>
           )}
         </div>

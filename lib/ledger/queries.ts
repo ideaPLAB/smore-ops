@@ -834,10 +834,10 @@ export async function changeGachaSlot(slotId: string, productId: string, price: 
   if (rErr) throw rErr;
 }
 
-// 슬롯 회수 (gacha_recover RPC — 위치이동용) — 잔량을 매장 재고로 되돌리고 슬롯을 비운다(qty=0).
-// 판매가 아니라 재고 회수. 다른 슬롯에서 '보충'으로 옮기면 슬롯 간 이동 완료.
-export async function recoverGachaSlot(slotId: string): Promise<void> {
-  const { error } = await client().rpc('gacha_recover', { p_slot: slotId });
+// 슬롯 회수 (gacha_recover RPC — 위치이동용) — 입력 수량(qty)만큼 매장 재고로 되돌린다. 전량/일부 모두 가능.
+// 판매가 아니라 재고 회수. 다른 슬롯에서 '보충'으로 옮기면 슬롯 간 이동 완료. (schema v0_34)
+export async function recoverGachaSlot(slotId: string, qty: number): Promise<void> {
+  const { error } = await client().rpc('gacha_recover', { p_slot: slotId, p_qty: qty });
   if (error) throw error;
 }
 
