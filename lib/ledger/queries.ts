@@ -807,7 +807,7 @@ export async function undoGachaCheck(slotId: string): Promise<void> {
   if (error) throw error;
 }
 
-// 슬롯 품목·가격 변경 (gacha_change RPC — 잔량이 있으면 매장 재고로 자동 회수)
+// 슬롯 품목·가격 변경 (gacha_change RPC — 잔량이 있으면 판매(소멸) 처리 + 매출(gacha_checks) 기록, 재고로 회수 X. v0_33)
 // remark(특이사항)는 RPC 밖에서 gacha_slots에 직접 반영 (gacha_change가 슬롯을 in-place update하므로 id 유지)
 export async function changeGachaSlot(slotId: string, productId: string, price: number, remark?: string | null): Promise<void> {
   const { error } = await client().rpc('gacha_change', {
@@ -821,6 +821,13 @@ export async function changeGachaSlot(slotId: string, productId: string, price: 
     .update({ remark: remark?.trim() ? remark.trim() : null })
     .eq('id', slotId);
   if (rErr) throw rErr;
+}
+
+// 슬롯 회수 (gacha_recover RPC — 위치이동용) — 잔량을 매장 재고로 되돌리고 슬롯을 비운다(qty=0).
+// 판매가 아니라 재고 회수. 다른 슬롯에서 '보충'으로 옮기면 슬롯 간 이동 완료.
+export async function recoverGachaSlot(slotId: string): Promise<void> {
+  const { error } = await client().rpc('gacha_recover', { p_slot: slotId });
+  if (error) throw error;
 }
 
 // 새 머신(bin) + 슬롯 일괄 등록

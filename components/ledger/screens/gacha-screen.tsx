@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations, getAllProducts, changeGachaSlot, createGachaMachine, updateGachaMachine, deleteGachaMachine, setGachaStockAsOf, getGachaSlotHistories } from '@/lib/ledger/queries';
+import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations, getAllProducts, changeGachaSlot, recoverGachaSlot, createGachaMachine, updateGachaMachine, deleteGachaMachine, setGachaStockAsOf, getGachaSlotHistories } from '@/lib/ledger/queries';
 import type { GachaMachine, GachaSlot, GachaCheck, GachaSlotHistory } from '@/lib/ledger/queries';
 import type { LocationRow, ProductRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
@@ -107,7 +107,7 @@ function SlotChangeModal({
     if (!productId) { setErr('품목을 선택해 주세요'); return; }
     const p = Number(price);
     if (isNaN(p) || p < 0) { setErr('판매가를 확인해 주세요'); return; }
-    if (slot.qty > 0 && !window.confirm(`잔량 ${slot.qty}개는 판매(소멸) 처리됩니다.\n재고로 돌아가지 않습니다. 계속하시겠습니까?`)) return;
+    if (slot.qty > 0 && !window.confirm(`잔량 ${slot.qty}개는 판매(소멸) 처리됩니다.\n재고로 돌아가지 않습니다.\n\n※ 위치만 옮기려면 '회수' 버튼을 쓰세요. 계속하시겠습니까?`)) return;
     setSaving(true); setErr('');
     try {
       await changeGachaSlot(slot.id, productId, p, remark);
@@ -129,7 +129,7 @@ function SlotChangeModal({
         <h2 style={{ margin: '0 0 4px', fontSize: '1.05rem' }}>품목변경 — {slot.bin_code} #{slot.slot_no}</h2>
         {slot.qty > 0 && (
           <p style={{ margin: '0 0 14px', fontSize: '.8rem', color: 'var(--lg-hazel)' }}>
-            ⚠ 잔량 {slot.qty}개는 품목 변경 시 판매(소멸) 처리됩니다. 재고로 돌아가지 않습니다.
+            ⚠ 잔량 {slot.qty}개는 품목 변경 시 판매(소멸) 처리됩니다. 재고로 돌아가지 않습니다. 위치만 옮기려면 &lsquo;회수&rsquo; 버튼을 쓰세요.
           </p>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -360,6 +360,23 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
     }
   }
 
+  // 슬롯 회수 (위치이동용) — 잔량을 매장 재고로 되돌리고 슬롯을 비운다. 판매 아님.
+  async function recoverSlot(slot: GachaSlot) {
+    if (slot.qty <= 0) { setErr('회수할 잔량이 없어요'); return; }
+    if (!confirm(`#${slot.slot_no} 슬롯의 잔량 ${slot.qty}개를 매장 재고로 회수할까요?\n(판매 아님 — 슬롯 위치이동용. 다른 슬롯에서 '보충'으로 옮기면 됩니다)`)) return;
+    setSavingSlots((prev) => new Set(prev).add(slot.id));
+    setErr('');
+    try {
+      await recoverGachaSlot(slot.id);
+      onSaved({ slot, prevQty: slot.qty });
+      onRefresh();
+    } catch (e: unknown) {
+      setErr((e as Error).message);
+    } finally {
+      setSavingSlots((prev) => { const n = new Set(prev); n.delete(slot.id); return n; });
+    }
+  }
+
   async function handleDelete() {
     const msg = totalQty > 0
       ? `'${machine.bin_code}' 머신을 삭제할까요?\n현재 재고 ${totalQty}개가 남아 있어요. 삭제하면 목록에서 사라집니다.`
@@ -432,6 +449,17 @@ function MachineCard({ machine, locations, onRefresh, onSaved, products, slotHis
             <button className="lg-btn-ghost" style={{ padding: '4px 12px', fontSize: '.78rem' }} onClick={() => setChangeSlot(s)}>
               품목변경
             </button>
+            {s.qty > 0 && (
+              <button
+                className="lg-btn-ghost"
+                style={{ padding: '4px 12px', fontSize: '.78rem' }}
+                disabled={savingSlots.has(s.id)}
+                onClick={() => recoverSlot(s)}
+                title="잔량을 매장 재고로 회수합니다 (판매 아님 — 슬롯 위치이동용)"
+              >
+                회수
+              </button>
+            )}
             <button
               className="lg-btn-ghost"
               style={{ padding: '4px 12px', fontSize: '.78rem', marginLeft: 'auto', color: 'var(--lg-rust)' }}
