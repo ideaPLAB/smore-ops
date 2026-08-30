@@ -732,6 +732,17 @@ export async function getGachaMachines(locationId?: string): Promise<GachaMachin
   }));
 }
 
+// 가챠 판매추정 매출 누계 — 전체 gacha_checks 합산.
+// (getGachaChecks는 화면 히스토리용으로 최신 50건만 불러오므로 누계 합산에 쓰면 과거분이 누락됨)
+export async function getGachaRevenueTotal(): Promise<number> {
+  const { data, error } = await client()
+    .from('gacha_checks')
+    .select('revenue_est');
+  if (error) throw error;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return ((data ?? []) as any[]).reduce((s, r) => s + (r.revenue_est ?? 0), 0);
+}
+
 export async function getGachaChecks(locationId?: string): Promise<GachaCheck[]> {
   const q = client()
     .from('gacha_checks')

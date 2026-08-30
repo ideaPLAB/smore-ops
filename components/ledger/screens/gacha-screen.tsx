@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getGachaMachines, getGachaChecks, runGachaCheck, undoGachaCheck, getLocations, getAllProducts, changeGachaSlot, recoverGachaSlot, createGachaMachine, updateGachaMachine, deleteGachaMachine, setGachaStockAsOf, getGachaSlotHistories } from '@/lib/ledger/queries';
+import { getGachaMachines, getGachaChecks, getGachaRevenueTotal, runGachaCheck, undoGachaCheck, getLocations, getAllProducts, changeGachaSlot, recoverGachaSlot, createGachaMachine, updateGachaMachine, deleteGachaMachine, setGachaStockAsOf, getGachaSlotHistories } from '@/lib/ledger/queries';
 import type { GachaMachine, GachaSlot, GachaCheck, GachaSlotHistory } from '@/lib/ledger/queries';
 import type { LocationRow, ProductRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
@@ -568,6 +568,7 @@ function HistoryRow({ c }: { c: GachaCheck }) {
 export function GachaScreen() {
   const [machines, setMachines] = useState<GachaMachine[]>([]);
   const [history, setHistory] = useState<GachaCheck[]>([]);
+  const [revenueTotal, setRevenueTotal] = useState(0);
   const [slotHistories, setSlotHistories] = useState<Record<string, GachaSlotHistory[]>>({});
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -610,10 +611,11 @@ export function GachaScreen() {
   }
 
   function load() {
-    Promise.all([getGachaMachines(selectedLoc || undefined), getGachaChecks()])
-      .then(([m, h]) => {
+    Promise.all([getGachaMachines(selectedLoc || undefined), getGachaChecks(), getGachaRevenueTotal()])
+      .then(([m, h, rev]) => {
         setMachines(m);
         setHistory(h);
+        setRevenueTotal(rev);
         const allSlotIds = m.flatMap((machine) => machine.slots.map((s) => s.id));
         if (allSlotIds.length > 0) {
           getGachaSlotHistories(allSlotIds)
@@ -639,7 +641,7 @@ export function GachaScreen() {
 
   const totalSlots = machines.reduce((s, m) => s + m.slots.length, 0);
   const totalQty = machines.reduce((s, m) => s + m.slots.reduce((ss, sl) => ss + sl.qty, 0), 0);
-  const totalRevenue = history.reduce((s, c) => s + c.revenue_est, 0);
+  const totalRevenue = revenueTotal; // 전체 gacha_checks 합산 (히스토리 50건 제한과 무관한 정확한 누계)
 
   return (
     <div>
