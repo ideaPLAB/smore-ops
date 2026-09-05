@@ -297,21 +297,22 @@ export function StoreTransferScreen() {
   return (
     <section className="lg-screen">
       {/* 탭 */}
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--lg-line)', marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
         {(['request', 'outbound', 'inbound'] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
             style={{
-              padding: '8px 18px',
+              padding: '7px 16px',
               fontSize: '.83rem',
-              fontWeight: tab === t ? 700 : 400,
-              borderBottom: tab === t ? '2px solid var(--lg-ink)' : '2px solid transparent',
-              marginBottom: -1,
-              background: 'transparent',
-              color: tab === t ? 'var(--lg-ink)' : 'var(--lg-muted)',
+              fontWeight: tab === t ? 600 : 400,
+              borderRadius: 999,
+              background: tab === t ? '#f97316' : 'transparent',
+              color: tab === t ? '#fff' : 'var(--lg-muted)',
+              border: 'none',
               cursor: 'pointer',
+              transition: 'background 0.12s, color 0.12s',
             }}
           >
             {t === 'request' ? '이동 요청' : t === 'outbound' ? '출고 대기' : '수령 대기'}
