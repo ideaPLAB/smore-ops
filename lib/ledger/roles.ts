@@ -51,7 +51,7 @@ export const SCREEN_NM: Record<ScreenId, string> = {
 export const ROLE_TABS: Record<Role, ScreenId[]> = {
   admin: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'store-transfer', 'sales', 'items', 'accounts', 'wiki', 'guide'],
   hq: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'store-transfer', 'sales', 'items', 'wiki', 'guide'],
-  manager: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'store-transfer', 'guide'],
+  manager: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'store-transfer', 'wiki', 'guide'],
   warehouse: ['queue', 'inbound', 'stock', 'guide'],
 };
 
