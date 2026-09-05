@@ -121,6 +121,46 @@ function ReceiveRow({ line, onDone }: { line: StoreTransferOrder['lines'][number
   );
 }
 
+// ── 히스토리 카드 (읽기 전용) ──────────────────────────────────────────────────
+function HistoryCard({ order }: { order: StoreTransferOrder }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`lg-vch${open ? ' open' : ''}`}>
+      <button type="button" className="lg-vch-h" onClick={() => setOpen((v) => !v)}>
+        <span className="lg-vch-no">{order.order_no}</span>
+        <span className="lg-vch-to">{order.from_location_name} → {order.to_location_name}</span>
+        <span className="lg-dim" style={{ fontSize: '.75rem' }}>{fmtDate(order.requested_at)}</span>
+        <span className="lg-badge" style={{ color: statusColor(order.status) }}>{statusLabel(order.status)}</span>
+        <span className="lg-vch-caret">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="lg-vch-body">
+          <div className="lg-lg lg-lhead">
+            <span>상품명</span>
+            <span className="lg-col-sku">상품코드</span>
+            <span className="lg-col-nums">요청 / 출고 / 수령</span>
+          </div>
+          {order.lines.map((l) => (
+            <div className="lg-lg" key={l.id}>
+              <span>{l.product_name}</span>
+              <span className="lg-col-sku lg-mono lg-dim">{l.sku}</span>
+              <span className="lg-col-nums">
+                <span className="lg-nums">
+                  <b className="lg-num">{l.qty_ordered}</b>
+                  {' / '}
+                  <b className="lg-num">{l.qty_shipped ?? '·'}</b>
+                  {' / '}
+                  <b className="lg-num">{l.qty_received ?? '·'}</b>
+                </span>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── 이동 전표 카드 ─────────────────────────────────────────────────────────────
 function TransferCard({
   order,
@@ -451,6 +491,22 @@ export function StoreTransferScreen() {
             {sending ? '처리 중…' : `이동 요청 전송 (${lines.length}종)`}
           </button>
           <p className="lg-hint">이동 요청 전송 후 출발 매장에서 출고 확인 → 도착 매장에서 수령 확인 순서로 진행합니다.</p>
+        </div>
+      )}
+
+      {/* 이동 요청 탭 — 히스토리 */}
+      {tab === 'request' && (
+        <div className="lg-card" style={{ marginTop: 18 }}>
+          <div className="lg-card-h">
+            이동 히스토리
+            <span className="lg-sub">전표 클릭 시 품목 펼침</span>
+          </div>
+          {orders.length === 0 ? (
+            <div className="lg-empty" style={{ padding: '18px 16px' }}>이동 내역이 없습니다</div>
+          ) : (
+            [...orders].sort((a, b) => b.requested_at.localeCompare(a.requested_at))
+              .map((o) => <HistoryCard key={o.id} order={o} />)
+          )}
         </div>
       )}
 
