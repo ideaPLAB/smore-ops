@@ -295,19 +295,20 @@ export function StoreTransferScreen() {
   if (status === 'error') return <div className="lg-empty lg-err">오류: {errMsg}</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <section className="lg-screen">
       {/* 탭 */}
-      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid var(--lg-line)', paddingBottom: 0 }}>
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--lg-line)', marginBottom: 20 }}>
         {(['request', 'outbound', 'inbound'] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
             style={{
-              padding: '8px 16px',
+              padding: '8px 18px',
               fontSize: '.83rem',
               fontWeight: tab === t ? 700 : 400,
               borderBottom: tab === t ? '2px solid var(--lg-ink)' : '2px solid transparent',
+              marginBottom: -1,
               background: 'transparent',
               color: tab === t ? 'var(--lg-ink)' : 'var(--lg-muted)',
               cursor: 'pointer',
@@ -320,114 +321,144 @@ export function StoreTransferScreen() {
 
       {/* 이동 요청 생성 탭 */}
       {tab === 'request' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* 매장 선택 */}
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-            <label style={{ fontSize: '.83rem', fontWeight: 600, minWidth: 60 }}>출발 매장</label>
-            <select
-              className="lg-select"
-              value={fromLocationId}
-              onChange={(e) => setFromLocationId(e.target.value)}
-            >
-              {storeLocations.map((l) => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-            </select>
-            <span style={{ color: 'var(--lg-muted)', fontSize: '.9rem' }}>→</span>
-            <label style={{ fontSize: '.83rem', fontWeight: 600, minWidth: 60 }}>도착 매장</label>
-            <select
-              className="lg-select"
-              value={toLocationId}
-              onChange={(e) => setToLocationId(e.target.value)}
-            >
-              {storeLocations.map((l) => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-            </select>
+        <div className="lg-form-card">
+          {/* 출발 → 도착 매장 */}
+          <div className="lg-f-row" style={{ marginBottom: 12 }}>
+            <div className="lg-f-col">
+              <label className="lg-label" htmlFor="st-from">출발 매장</label>
+              <select
+                id="st-from"
+                className="lg-select"
+                value={fromLocationId}
+                onChange={(e) => setFromLocationId(e.target.value)}
+              >
+                {storeLocations.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ alignSelf: 'flex-end', paddingBottom: 10, color: 'var(--lg-muted)' }}>→</div>
+            <div className="lg-f-col">
+              <label className="lg-label" htmlFor="st-to">도착 매장</label>
+              <select
+                id="st-to"
+                className="lg-select"
+                value={toLocationId}
+                onChange={(e) => setToLocationId(e.target.value)}
+              >
+                {storeLocations.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* 상품 검색 */}
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input
-              className="lg-search"
-              type="text"
-              placeholder="상품명 / SKU / 바코드 검색"
-              value={searchQ}
-              onChange={(e) => setSearchQ(e.target.value)}
-              style={{ flex: 1, minWidth: 200 }}
-            />
-            <input
-              className="lg-qty-input"
-              type="number"
-              min="1"
-              placeholder="수량"
-              value={searchQty}
-              onChange={(e) => setSearchQty(e.target.value)}
-              style={{ width: 72 }}
-            />
-          </div>
-          {filtered.length > 0 && (
-            <div className="lg-suggest">
-              {filtered.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  className="lg-suggest-item"
-                  onClick={() => addLine(p)}
-                >
-                  <span>{p.name}</span>
-                  <span className="lg-dim lg-mono" style={{ fontSize: '.75rem' }}>{p.sku}</span>
-                </button>
-              ))}
+          <div className="lg-f-row">
+            <div className="lg-f-col lg-f-grow">
+              <label className="lg-label" htmlFor="st-prod">상품 검색</label>
+              <input
+                id="st-prod"
+                className="lg-input"
+                placeholder="이름 · SKU · 바코드"
+                value={searchQ}
+                onChange={(e) => setSearchQ(e.target.value)}
+                autoComplete="off"
+              />
+              {filtered.length > 0 && (
+                <div className="lg-autocomplete">
+                  {filtered.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className="lg-ac-item"
+                      onClick={() => setSearchQ(`${p.name} (${p.sku})`)}
+                    >
+                      <span>{p.name}</span>
+                      <span className="lg-mono lg-dim">{p.sku}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
+            <div className="lg-f-col" style={{ flex: '0 0 90px' }}>
+              <label className="lg-label" htmlFor="st-qty">수량</label>
+              <input
+                id="st-qty"
+                type="number"
+                min="1"
+                className="lg-input"
+                placeholder="0"
+                value={searchQty}
+                onChange={(e) => setSearchQty(e.target.value)}
+              />
+            </div>
+            <div className="lg-f-col" style={{ flex: '0 0 auto', alignSelf: 'flex-end' }}>
+              <button
+                type="button"
+                className="lg-btn-ghost"
+                onClick={() => {
+                  const match = products.find(
+                    (p) =>
+                      searchQ.includes(p.sku) ||
+                      searchQ === p.name ||
+                      searchQ === `${p.name} (${p.sku})`,
+                  );
+                  if (!match) { showToast('상품을 목록에서 선택해 주세요'); return; }
+                  addLine(match);
+                }}
+              >
+                담기
+              </button>
+            </div>
+          </div>
 
           {/* 담긴 상품 */}
-          {lines.length > 0 && (
-            <div className="lg-vch open">
-              <div className="lg-vch-body">
-                <div className="lg-lg lg-lhead">
-                  <span>상품명</span>
-                  <span className="lg-col-sku">코드</span>
-                  <span className="lg-col-num">수량</span>
-                  <span className="lg-col-num" />
-                </div>
-                {lines.map((l, i) => (
-                  <div key={l.product_id} className="lg-lg">
-                    <span>{l.product_name}</span>
-                    <span className="lg-col-sku lg-mono lg-dim">{l.sku}</span>
-                    <span className="lg-col-num lg-mono">{l.qty}</span>
-                    <span className="lg-col-num">
-                      <button type="button" className="lg-btn-sm" onClick={() => removeLine(i)}>
-                        삭제
-                      </button>
-                    </span>
-                  </div>
-                ))}
+          <div className="lg-line-list" style={{ marginTop: 12 }}>
+            {lines.length === 0 ? (
+              <div className="lg-empty" style={{ padding: '14px 16px', fontSize: '.84rem' }}>
+                위에서 상품을 검색해 담아 주세요
               </div>
-            </div>
-          )}
+            ) : (
+              lines.map((l, i) => (
+                <div key={l.product_id} className="lg-line-item">
+                  <span>
+                    {l.product_name} <span className="lg-mono lg-dim">{l.sku}</span>
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <b className="lg-num">{l.qty}개</b>
+                    <button
+                      type="button"
+                      className="lg-x"
+                      aria-label="빼기"
+                      onClick={() => removeLine(i)}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
 
           <button
             type="button"
-            className="lg-btn"
+            className="lg-btn-main"
             disabled={sending || lines.length === 0}
             onClick={sendRequest}
-            style={{ alignSelf: 'flex-start' }}
           >
             {sending ? '처리 중…' : `이동 요청 전송 (${lines.length}종)`}
           </button>
+          <p className="lg-hint">이동 요청 전송 후 출발 매장에서 출고 확인 → 도착 매장에서 수령 확인 순서로 진행합니다.</p>
         </div>
       )}
 
       {/* 출고 대기 탭 */}
       {tab === 'outbound' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <p className="lg-dim" style={{ fontSize: '.8rem' }}>
-            이 매장에서 다른 매장으로 보내야 하는 이동 요청 — 출고 확인 후 상대 매장이 수령 처리합니다.
-          </p>
+          <p className="lg-sub">이 매장에서 다른 매장으로 보내야 하는 이동 요청 — 출고 확인 후 상대 매장이 수령 처리합니다.</p>
           {outbound.length === 0
-            ? <div className="lg-empty">출고 대기 중인 이동 요청이 없어요</div>
+            ? <div className="lg-card lg-empty">출고 대기 중인 이동 요청이 없어요</div>
             : outbound.map((o) => (
                 <TransferCard key={o.id} order={o} mode="outbound" onRefresh={refresh} />
               ))}
@@ -437,28 +468,16 @@ export function StoreTransferScreen() {
       {/* 수령 대기 탭 */}
       {tab === 'inbound' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <p className="lg-dim" style={{ fontSize: '.8rem' }}>
-            이 매장으로 오는 이동 요청 — 물건 받으면 수량 확인 후 수령 처리하세요.
-          </p>
+          <p className="lg-sub">이 매장으로 오는 이동 요청 — 물건 받으면 수량 확인 후 수령 처리하세요.</p>
           {inbound.length === 0
-            ? <div className="lg-empty">수령 대기 중인 이동 요청이 없어요</div>
+            ? <div className="lg-card lg-empty">수령 대기 중인 이동 요청이 없어요</div>
             : inbound.map((o) => (
                 <TransferCard key={o.id} order={o} mode="inbound" onRefresh={refresh} />
               ))}
         </div>
       )}
 
-      {toast && (
-        <div
-          style={{
-            position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-            background: 'var(--lg-ink)', color: 'var(--lg-bg)', padding: '10px 20px',
-            borderRadius: 8, fontSize: '.85rem', zIndex: 999,
-          }}
-        >
-          {toast}
-        </div>
-      )}
-    </div>
+      {toast && <div className="lg-toast">{toast}</div>}
+    </section>
   );
 }
