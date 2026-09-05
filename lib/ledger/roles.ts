@@ -21,6 +21,7 @@ export type ScreenId =
   | 'dispatch'
   | 'queue'
   | 'inbound'
+  | 'store-transfer'
   | 'sales'
   | 'items'
   | 'accounts'
@@ -37,6 +38,7 @@ export const SCREEN_NM: Record<ScreenId, string> = {
   dispatch: '출고요청',
   queue: '출고 대기열',
   inbound: '입고 처리',
+  'store-transfer': '매장 간 재고이동',
   sales: '판매 데이터 업로드',
   items: '상품관리',
   accounts: '계정 관리',
@@ -47,9 +49,9 @@ export const SCREEN_NM: Record<ScreenId, string> = {
 // 역할별 접근 가능한 화면.
 // admin은 마스터 → 전 화면. 계정 관리(accounts)는 마스터 전용 (2026-07-24).
 export const ROLE_TABS: Record<Role, ScreenId[]> = {
-  admin: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'sales', 'items', 'accounts', 'wiki', 'guide'],
-  hq: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'sales', 'items', 'wiki', 'guide'],
-  manager: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'guide'],
+  admin: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'store-transfer', 'sales', 'items', 'accounts', 'wiki', 'guide'],
+  hq: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'store-transfer', 'sales', 'items', 'wiki', 'guide'],
+  manager: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'store-transfer', 'guide'],
   warehouse: ['queue', 'inbound', 'stock', 'guide'],
 };
 

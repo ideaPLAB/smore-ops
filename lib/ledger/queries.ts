@@ -1059,3 +1059,82 @@ export async function getSalesUploadHistory(): Promise<SalesUploadStat[]> {
   });
   return Array.from(map.entries()).map(([sale_date, row_count]) => ({ sale_date, row_count }));
 }
+
+// ── 매장 간 재고이동 ──────────────────────────────────────────────────────────
+
+export interface StoreTransferLine {
+  id: string;
+  product_id: string;
+  product_name: string;
+  sku: string;
+  qty_ordered: number;
+  qty_shipped: number | null;
+  qty_received: number | null;
+  received_at: string | null;
+}
+
+export interface StoreTransferOrder {
+  id: string;
+  order_no: string;
+  status: string;
+  requested_at: string;
+  from_location_name: string;
+  to_location_name: string;
+  lines: StoreTransferLine[];
+}
+
+// 매장→매장 이동 전표 조회. from_location 또는 to_location으로 필터.
+export async function getStoreTransferOrders(locationId?: string): Promise<StoreTransferOrder[]> {
+  let q = client()
+    .from('transfer_orders')
+    .select(
+      `id,order_no,status,requested_at,
+       from_loc:locations!transfer_orders_from_location_fkey(id,name,type),
+       to_loc:locations!transfer_orders_to_location_fkey(id,name,type),
+       lines:transfer_order_lines(id,qty_ordered,qty_shipped,qty_received,received_at,
+         product:products(id,name,sku))`
+    )
+    .neq('status', 'cancelled')
+    .order('requested_at', { ascending: false })
+    .limit(100);
+
+  const { data, error } = await q;
+  if (error) throw error;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const all = ((data ?? []) as any[]).map((o) => ({
+    id: o.id,
+    order_no: o.order_no,
+    status: o.status,
+    requested_at: o.requested_at,
+    from_location_id: o.from_loc?.id ?? '',
+    from_location_type: o.from_loc?.type ?? '',
+    from_location_name: o.from_loc?.name ?? '—',
+    to_location_id: o.to_loc?.id ?? '',
+    to_location_type: o.to_loc?.type ?? '',
+    to_location_name: o.to_loc?.name ?? '—',
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    lines: (o.lines ?? []).map((l: any) => ({
+      id: l.id,
+      product_id: l.product?.id ?? '',
+      product_name: l.product?.name ?? '—',
+      sku: l.product?.sku ?? '',
+      qty_ordered: l.qty_ordered,
+      qty_shipped: l.qty_shipped,
+      qty_received: l.qty_received,
+      received_at: l.received_at,
+    })),
+  }));
+
+  // 창고(warehouse) 출발 전표는 제외 — dispatch/inbound 화면에서 처리
+  const storeSide = all.filter(
+    (o) => o.from_location_type !== 'warehouse' && o.to_location_type !== 'warehouse'
+  );
+
+  if (!locationId) return storeSide;
+
+  // 내 매장이 발신자 또는 수신자인 것만
+  return storeSide.filter(
+    (o) => o.from_location_id === locationId || o.to_location_id === locationId
+  );
+}

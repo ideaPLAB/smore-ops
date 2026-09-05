@@ -12,6 +12,7 @@ import { GachaScreen } from './screens/gacha-screen';
 import { SelfuseScreen } from './screens/selfuse-screen';
 import { QueueScreen } from './screens/queue-screen';
 import { InboundScreen } from './screens/inbound-screen';
+import { StoreTransferScreen } from './screens/store-transfer-screen';
 import { SalesScreen } from './screens/sales-screen';
 import { ItemsScreen } from './screens/items-screen';
 import { AccountsScreen } from './screens/accounts-screen';
@@ -39,6 +40,8 @@ function ScreenHost({ screen }: { screen: ScreenId }) {
       return <DispatchScreen />;
     case 'inbound':
       return <InboundScreen />;
+    case 'store-transfer':
+      return <StoreTransferScreen />;
     case 'sales':
       return <SalesScreen />;
     case 'items':
