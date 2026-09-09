@@ -110,6 +110,7 @@ interface StockEntry {
   product_id: string;
   name: string;
   sku: string;
+  vendor_name: string | null;
   locations: Record<string, { on_hand: number; in_transit: number }>;
 }
 
@@ -121,6 +122,7 @@ export function StockScreen() {
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [query, setQuery] = useState('');
+  const [vendorFilter, setVendorFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [adjustTarget, setAdjustTarget] = useState<AdjustTarget | null>(null);
@@ -156,7 +158,7 @@ export function StockScreen() {
       if (!map[b.product_id]) {
         const p = prodMap[b.product_id];
         if (!p) continue;
-        map[b.product_id] = { product_id: b.product_id, name: p.name, sku: p.sku, locations: {} };
+        map[b.product_id] = { product_id: b.product_id, name: p.name, sku: p.sku, vendor_name: p.vendor_name ?? null, locations: {} };
       }
       map[b.product_id].locations[b.location_id] = {
         on_hand: b.on_hand,
@@ -173,11 +175,21 @@ export function StockScreen() {
     return Object.values(map).sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   }, [balances, transits, prodMap]);
 
+  const vendors = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of entries) if (e.vendor_name) set.add(e.vendor_name);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ko'));
+  }, [entries]);
+
   const filtered = useMemo(() => {
-    if (!query) return entries;
-    const q = query.toLowerCase();
-    return entries.filter((e) => e.name.toLowerCase().includes(q) || e.sku.toLowerCase().includes(q));
-  }, [entries, query]);
+    let result = entries;
+    if (vendorFilter) result = result.filter((e) => e.vendor_name === vendorFilter);
+    if (query) {
+      const q = query.toLowerCase();
+      result = result.filter((e) => e.name.toLowerCase().includes(q) || e.sku.toLowerCase().includes(q));
+    }
+    return result;
+  }, [entries, query, vendorFilter]);
 
   // 화면 테이블에 보이는 그대로 CSV 내보내기
   const showTransit = role === 'hq' || role === 'admin';
@@ -262,14 +274,26 @@ export function StockScreen() {
         </div>
       </div>
 
-      <div className="lg-toolbar" style={{ padding: 0, marginTop: 12 }}>
+      <div className="lg-toolbar" style={{ padding: 0, marginTop: 12, display: 'flex', gap: 8 }}>
         <input
           className="lg-input lg-search"
           type="search"
           placeholder="상품명 · SKU 검색"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          style={{ flex: 1 }}
         />
+        <select
+          className="lg-input"
+          value={vendorFilter}
+          onChange={(e) => setVendorFilter(e.target.value)}
+          style={{ flexShrink: 0, minWidth: 120 }}
+        >
+          <option value="">전체 업체</option>
+          {vendors.map((v) => (
+            <option key={v} value={v}>{v}</option>
+          ))}
+        </select>
       </div>
 
       {loading ? (
