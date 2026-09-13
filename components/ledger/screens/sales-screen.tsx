@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import {
   getLocations,
-  getProducts,
+  getProductsForSalesMatch,
   getSalesAsof,
   getSalesUploadHistory,
   upsertPosSales,
@@ -81,7 +81,7 @@ export function SalesScreen() {
     setPreview(null);
     try {
       const [locations, products, buf] = await Promise.all([
-        getLocations(), getProducts(), file.arrayBuffer(),
+        getLocations(), getProductsForSalesMatch(), file.arrayBuffer(),
       ]);
 
       const locByCode = new Map<string, { id: string; name: string }>();

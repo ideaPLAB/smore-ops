@@ -1047,17 +1047,42 @@ export interface SalesUploadStat {
 }
 
 export async function getSalesUploadHistory(): Promise<SalesUploadStat[]> {
-  const { data, error } = await client()
-    .from('pos_sales_daily')
-    .select('sale_date')
-    .order('sale_date', { ascending: false })
-    .limit(200);
-  if (error) throw error;
+  // 날짜별 행수 집계 — 최근 60일 범위를 페이지네이션으로 전부 읽는다 (200행 제한 시 최근 날짜만 보이던 버그 수정)
+  const since = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+  const PAGE = 1000;
   const map = new Map<string, number>();
-  (data ?? []).forEach((r: { sale_date: string }) => {
-    map.set(r.sale_date, (map.get(r.sale_date) ?? 0) + 1);
-  });
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await client()
+      .from('pos_sales_daily')
+      .select('sale_date')
+      .gte('sale_date', since)
+      .order('sale_date', { ascending: false })
+      .order('product_id') // range 페이징 안정화
+      .range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as { sale_date: string }[];
+    rows.forEach((r) => map.set(r.sale_date, (map.get(r.sale_date) ?? 0) + 1));
+    if (rows.length < PAGE) break;
+  }
   return Array.from(map.entries()).map(([sale_date, row_count]) => ({ sale_date, row_count }));
+}
+
+// 판매 매칭용 상품 전체 (id/sku/barcode만) — 판매된 상품은 active 여부와 무관하게 매칭해야 함
+export async function getProductsForSalesMatch(): Promise<{ id: string; sku: string; barcode: string | null }[]> {
+  const PAGE = 1000;
+  const all: { id: string; sku: string; barcode: string | null }[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await client()
+      .from('products')
+      .select('id,sku,barcode')
+      .order('id') // range 페이징 행 누락 방지
+      .range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as { id: string; sku: string; barcode: string | null }[];
+    all.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return all;
 }
 
 export interface PosSaleRow {
