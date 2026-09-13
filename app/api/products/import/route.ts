@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import * as XLSX from 'xlsx';
 
+// 9천여 품목 일괄 upsert가 기본 함수 제한시간(~15초)을 넘겨 Gateway Timeout 발생 — 여유 확보
+export const maxDuration = 60;
+
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -91,7 +94,7 @@ export async function POST(req: NextRequest) {
 
     const client = adminClient();
 
-    const CHUNK = 500;
+    const CHUNK = 1000;
     let upserted = 0;
     for (let i = 0; i < rows.length; i += CHUNK) {
       const chunk = rows.slice(i, i + CHUNK);
