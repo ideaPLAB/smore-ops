@@ -321,7 +321,7 @@ export function SalesScreen() {
                 </p>
               )}
               {preview.unmatched.length > 0 && (
-                <details style={{ fontSize: '.8rem', marginBottom: 8 }}>
+                <details open style={{ fontSize: '.8rem', marginBottom: 8 }}>
                   <summary style={{ cursor: 'pointer', color: 'var(--lg-rust)' }}>
                     ⚠ 미매칭 품목 {preview.unmatched.length}종 (수량 {preview.unmatched.reduce((s, u) => s + u.qty, 0)}) — 검역 보관 후 상품 등록 시 재업로드로 반영
                   </summary>
