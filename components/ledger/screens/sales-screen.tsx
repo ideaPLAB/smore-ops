@@ -158,11 +158,15 @@ export function SalesScreen() {
 
       if (agg.size === 0) throw new Error('매칭된 행이 없습니다 — 매장코드/품목코드를 확인해 주세요');
 
+      // 판매·취소가 상쇄돼 순수량 0인 집계행은 재고 변화가 없으므로 제외
+      // (inventory_events는 qty_delta<>0 제약이 있어 0이 섞이면 업로드 전체가 실패함)
+      const uploadRows = Array.from(agg.values()).filter((r) => r.qty !== 0);
+
       setPreview({
         fileName: file.name,
         dateFrom,
         dateTo,
-        rows: Array.from(agg.values()),
+        rows: uploadRows,
         perStore: Array.from(perStoreMap.entries()).map(([store, v]) => ({ store, ...v })),
         matchedRows,
         totalRows: raw.length,
