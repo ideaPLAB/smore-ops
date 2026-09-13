@@ -1060,6 +1060,37 @@ export async function getSalesUploadHistory(): Promise<SalesUploadStat[]> {
   return Array.from(map.entries()).map(([sale_date, row_count]) => ({ sale_date, row_count }));
 }
 
+export interface PosSaleRow {
+  sale_date: string;
+  location_id: string;
+  product_id: string;
+  qty: number;
+  amount: number | null;
+}
+
+// POS 판매 엑셀 업로드 — upsert_pos_sales RPC (schema_patch_v0_35).
+// 신규 행은 sale 이벤트로 재고 차감, qty 변경 행은 차분 보정, 동일 행은 무시(재업로드 안전).
+export async function upsertPosSales(
+  rows: PosSaleRow[],
+  quarantine: Record<string, unknown>[] = [],
+): Promise<{ processed: number; quarantined: number }> {
+  const c = client();
+  const CHUNK = 1000;
+  let processed = 0;
+  let quarantined = 0;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const isLast = i + CHUNK >= rows.length;
+    const { data, error } = await c.rpc('upsert_pos_sales', {
+      p_rows: rows.slice(i, i + CHUNK).map((r) => ({ ...r, source: 'app_upload' })),
+      p_quarantine: isLast ? quarantine : [],
+    });
+    if (error) throw error;
+    processed += (data as { processed: number }).processed ?? 0;
+    quarantined += (data as { quarantined: number }).quarantined ?? 0;
+  }
+  return { processed, quarantined };
+}
+
 // ── 매장 간 재고이동 ──────────────────────────────────────────────────────────
 
 export interface StoreTransferLine {
