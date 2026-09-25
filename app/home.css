@@ -1,0 +1,23 @@
+/* 메인페이지(홈) 4분할 레이아웃 — components/ledger/screens/home-screen.tsx */
+
+.lg-logo-btn { display: block; padding: 0; border: 0; background: transparent; cursor: pointer; text-align: left; font-family: inherit; }
+.lg-logo-btn:hover { opacity: 0.7; }
+
+.hm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(260px, auto);
+  gap: 16px;
+}
+.hm-block { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.hm-block-h { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--lg-line-soft); }
+.hm-block-t { font-weight: 600; font-size: 0.95rem; color: var(--lg-ink); }
+.hm-block-h .lg-sub { font-size: 0.74rem; color: var(--lg-muted); }
+.hm-block-b { flex: 1; padding: 14px 16px; }
+.hm-empty { margin: 0; padding: 36px 0; text-align: center; font-size: 0.82rem; color: var(--lg-muted); }
+
+/* 모바일: 세로 1열 */
+@media (max-width: 720px) {
+  .hm-grid { grid-template-columns: 1fr; grid-auto-rows: auto; gap: 12px; }
+  .hm-block-b { min-height: 140px; }
+}

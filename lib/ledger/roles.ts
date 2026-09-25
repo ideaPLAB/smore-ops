@@ -12,6 +12,7 @@ export const ROLE_NM: Record<Role, string> = {
 
 // 화면 id → 라벨 (mockup smore_ledger_v2_10.html의 <h1> 문구 그대로)
 export type ScreenId =
+  | 'home'
   | 'board'
   | 'stock'
   | 'receipt'
@@ -29,6 +30,7 @@ export type ScreenId =
   | 'guide';
 
 export const SCREEN_NM: Record<ScreenId, string> = {
+  home: '홈',
   board: '발주판',
   stock: '재고 현황',
   receipt: '입고검수',
@@ -48,11 +50,12 @@ export const SCREEN_NM: Record<ScreenId, string> = {
 
 // 역할별 접근 가능한 화면.
 // admin은 마스터 → 전 화면. 계정 관리(accounts)는 마스터 전용 (2026-07-24).
+// home(메인페이지)은 전 역할 첫 화면 — 로그인 직후 표시 (2026-09-25 메인페이지 개편).
 export const ROLE_TABS: Record<Role, ScreenId[]> = {
-  admin: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'store-transfer', 'sales', 'items', 'accounts', 'wiki', 'guide'],
-  hq: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'store-transfer', 'sales', 'items', 'wiki', 'guide'],
-  manager: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'store-transfer', 'wiki', 'guide'],
-  warehouse: ['queue', 'inbound', 'stock', 'guide'],
+  admin: ['home', 'board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'store-transfer', 'sales', 'items', 'accounts', 'wiki', 'guide'],
+  hq: ['home', 'board', 'stock', 'receipt', 'gacha', 'selfuse', 'transit', 'dispatch', 'queue', 'inbound', 'store-transfer', 'sales', 'items', 'wiki', 'guide'],
+  manager: ['home', 'board', 'stock', 'receipt', 'gacha', 'selfuse', 'store-transfer', 'wiki', 'guide'],
+  warehouse: ['home', 'queue', 'inbound', 'stock', 'guide'],
 };
 
 export const ROLES: Role[] = ['admin', 'hq', 'manager', 'warehouse'];

@@ -19,9 +19,12 @@ import { AccountsScreen } from './screens/accounts-screen';
 import { GuideScreen } from './screens/guide-screen';
 import { WikiScreen } from './screens/wiki-screen';
 import { LoginScreen } from './screens/login-screen';
+import { HomeScreen } from './screens/home-screen';
 
 function ScreenHost({ screen }: { screen: ScreenId }) {
   switch (screen) {
+    case 'home':
+      return <HomeScreen />;
     case 'board':
       return <BoardScreen />;
     case 'stock':
@@ -75,7 +78,10 @@ function ShellInner() {
     <div className="ledger">
       <aside className="lg-sidebar">
         <div className="lg-brand">
-          <p className="lg-logo">+SMORE OPS.</p>
+          {/* 로고 클릭 → 메인페이지(홈) */}
+          <button type="button" className="lg-logo lg-logo-btn" onClick={() => setScreen('home')} aria-label="홈으로">
+            +SMORE OPS.
+          </button>
         </div>
         <nav className="lg-nav">
           {tabs.map((t) => (
