@@ -13,6 +13,7 @@ export const ROLE_NM: Record<Role, string> = {
 // 화면 id → 라벨 (mockup smore_ledger_v2_10.html의 <h1> 문구 그대로)
 export type ScreenId =
   | 'home'
+  | 'notices'
   | 'board'
   | 'stock'
   | 'receipt'
@@ -31,6 +32,7 @@ export type ScreenId =
 
 export const SCREEN_NM: Record<ScreenId, string> = {
   home: '홈',
+  notices: '공지사항',
   board: '발주판',
   stock: '재고 현황',
   receipt: '입고검수',
@@ -57,5 +59,11 @@ export const ROLE_TABS: Record<Role, ScreenId[]> = {
   manager: ['board', 'stock', 'receipt', 'gacha', 'selfuse', 'store-transfer', 'wiki', 'guide'],
   warehouse: ['queue', 'inbound', 'stock', 'guide'],
 };
+
+// 메뉴에 없지만 전 역할이 들어갈 수 있는 화면 (홈, 홈에서 여는 공지사항 전체보기)
+export const COMMON_SCREENS: ScreenId[] = ['home', 'notices'];
+
+// 화면 이동 함수 (shell 이 내려줌). noticeId 가 있으면 공지사항 화면에서 그 공지를 펼친 채로 연다.
+export type GoFn = (screen: ScreenId, opts?: { noticeId?: string }) => void;
 
 export const ROLES: Role[] = ['admin', 'hq', 'manager', 'warehouse'];

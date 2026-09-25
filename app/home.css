@@ -27,3 +27,60 @@
   .lg-brand { display: block; flex: 0 0 auto; padding: 0 8px 0 2px; }
   .lg-brand .lg-logo { font-size: 1rem; white-space: nowrap; }
 }
+
+/* ── 홈 공지 칸 목록 ───────────────────────────────────── */
+.hm-block-act { margin-left: auto; }
+.hm-more { border: 0; background: transparent; color: var(--lg-muted); font-size: 0.76rem; cursor: pointer; padding: 2px 4px; font-family: inherit; }
+.hm-more:hover { color: var(--lg-ink); }
+.hm-list { list-style: none; margin: 0; padding: 0; }
+.hm-li { display: flex; align-items: center; gap: 6px; width: 100%; padding: 9px 2px; border: 0; border-bottom: 1px solid var(--lg-line-soft); background: transparent; cursor: pointer; text-align: left; font-family: inherit; font-size: 0.85rem; color: var(--lg-ink); }
+.hm-list li:last-child .hm-li { border-bottom: 0; }
+.hm-li:hover .hm-li-t { text-decoration: underline; }
+.hm-li-t { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-li-d { flex: 0 0 auto; font-size: 0.74rem; color: var(--lg-muted); font-variant-numeric: tabular-nums; }
+
+/* ── 공지 공통 뱃지 ────────────────────────────────────── */
+.nt-pin { flex: 0 0 auto; font-size: 0.68rem; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--lg-ink); color: #fff; }
+.nt-new { flex: 0 0 auto; font-size: 0.64rem; font-weight: 700; width: 16px; height: 16px; line-height: 16px; text-align: center; border-radius: 50%; background: var(--lg-rust); color: #fff; }
+
+/* ── 공지사항 전체보기 화면 ─────────────────────────────── */
+.nt-wrap { display: flex; flex-direction: column; gap: 14px; max-width: 860px; }
+.nt-top { display: flex; justify-content: flex-end; }
+.nt-list { padding: 0; overflow: hidden; }
+.nt-item { border-bottom: 1px solid var(--lg-line-soft); }
+.nt-item:last-child { border-bottom: 0; }
+.nt-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 13px 16px; border: 0; background: transparent; cursor: pointer; text-align: left; font-family: inherit; font-size: 0.9rem; color: var(--lg-ink); }
+.nt-head:hover { background: var(--lg-bg); }
+.nt-item.open .nt-head { font-weight: 600; }
+.nt-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nt-item.open .nt-title { white-space: normal; }
+.nt-date { flex: 0 0 auto; font-size: 0.76rem; color: var(--lg-muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.nt-body { padding: 0 16px 16px; }
+.nt-meta { margin: 0 0 10px; font-size: 0.74rem; color: var(--lg-muted); }
+.nt-text { margin: 0 0 12px; font-size: 0.88rem; line-height: 1.65; color: var(--lg-ink); white-space: pre-wrap; word-break: break-word; }
+.nt-images { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.nt-images img { display: block; max-width: 100%; max-height: 360px; border-radius: 10px; border: 1px solid var(--lg-line); }
+.nt-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.nt-del { color: var(--lg-rust) !important; }
+
+/* 작성·수정 폼 */
+.nt-editor { max-width: none !important; display: flex; flex-direction: column; gap: 6px; }
+.nt-editor-h { margin: 0 0 6px; font-weight: 600; font-size: 0.95rem; }
+.nt-field { width: 100%; box-sizing: border-box; margin-bottom: 8px; font-family: inherit; }
+.nt-textarea { min-height: 160px; resize: vertical; line-height: 1.6; }
+.nt-thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+.nt-thumb { position: relative; width: 84px; height: 84px; border-radius: 10px; border: 1px solid var(--lg-line); overflow: hidden; background: var(--lg-bg); }
+.nt-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.nt-thumb button { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: rgba(0,0,0,.65); color: #fff; font-size: 0.8rem; line-height: 20px; padding: 0; cursor: pointer; }
+.nt-add { display: flex; align-items: center; justify-content: center; font-size: 0.78rem; color: var(--lg-muted); cursor: pointer; border-style: dashed; }
+.nt-add:hover { color: var(--lg-ink); }
+.nt-err { margin: 0; font-size: 0.76rem; color: var(--lg-rust); }
+.nt-check { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 0.84rem; color: var(--lg-ink); cursor: pointer; }
+.nt-editor-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+.nt-save { width: auto !important; margin-top: 0 !important; padding: 10px 28px !important; }
+
+@media (max-width: 720px) {
+  .nt-wrap { max-width: none; }
+  .nt-editor-btns { justify-content: stretch; }
+  .nt-editor-btns button { flex: 1; }
+}

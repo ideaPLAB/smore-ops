@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { RoleProvider, useRole } from './role-context';
-import { ROLE_TABS, ROLE_NM, ROLES, SCREEN_NM, ScreenId } from '@/lib/ledger/roles';
+import { COMMON_SCREENS, ROLE_TABS, ROLE_NM, ROLES, SCREEN_NM, ScreenId, GoFn } from '@/lib/ledger/roles';
 import { TransitScreen } from './screens/transit-screen';
 import { BoardScreen } from './screens/board-screen';
 import { DispatchScreen } from './screens/dispatch-screen';
@@ -20,11 +20,14 @@ import { GuideScreen } from './screens/guide-screen';
 import { WikiScreen } from './screens/wiki-screen';
 import { LoginScreen } from './screens/login-screen';
 import { HomeScreen } from './screens/home-screen';
+import { NoticesScreen } from './screens/notices-screen';
 
-function ScreenHost({ screen }: { screen: ScreenId }) {
+function ScreenHost({ screen, go, noticeId }: { screen: ScreenId; go: GoFn; noticeId: string | null }) {
   switch (screen) {
     case 'home':
-      return <HomeScreen />;
+      return <HomeScreen go={go} />;
+    case 'notices':
+      return <NoticesScreen initialOpenId={noticeId} />;
     case 'board':
       return <BoardScreen />;
     case 'stock':
@@ -64,12 +67,18 @@ function ShellInner() {
   const { role, setRole, session, logout } = useRole();
   const tabs = ROLE_TABS[role];
   const [screen, setScreen] = useState<ScreenId>('home');
+  const [noticeId, setNoticeId] = useState<string | null>(null);
+
+  const go: GoFn = (next, opts) => {
+    setNoticeId(opts?.noticeId ?? null);
+    setScreen(next);
+  };
 
   // 역할을 바꾸면 접근 불가 화면이면 홈으로 이동 (마스터 전용 미리보기)
   function changeRole(r: typeof role) {
     setRole(r);
     const next = ROLE_TABS[r];
-    if (screen !== 'home' && !next.includes(screen)) setScreen('home');
+    if (!COMMON_SCREENS.includes(screen) && !next.includes(screen)) setScreen('home');
   }
 
   if (!session) return null;
@@ -79,7 +88,7 @@ function ShellInner() {
       <aside className="lg-sidebar">
         <div className="lg-brand">
           {/* 로고 클릭 → 메인페이지(홈) */}
-          <button type="button" className="lg-logo lg-logo-btn" onClick={() => setScreen('home')} aria-label="홈으로">
+          <button type="button" className="lg-logo lg-logo-btn" onClick={() => go('home')} aria-label="홈으로">
             +SMORE OPS.
           </button>
         </div>
@@ -89,7 +98,7 @@ function ShellInner() {
               key={t}
               type="button"
               className={`lg-navbtn${t === screen ? ' on' : ''}`}
-              onClick={() => setScreen(t)}
+              onClick={() => go(t)}
             >
               {SCREEN_NM[t]}
             </button>
@@ -142,7 +151,7 @@ function ShellInner() {
         </header>
 
         <main className="lg-main">
-          <ScreenHost screen={screen} />
+          <ScreenHost screen={screen} go={go} noticeId={noticeId} />
         </main>
 
         <footer className="lg-foot">모든 전표는 히스토리에 적재됩니다 · 재고 잔액은 이벤트 합산이 원천</footer>
