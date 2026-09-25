@@ -21,3 +21,9 @@
   .hm-grid { grid-template-columns: 1fr; grid-auto-rows: auto; gap: 12px; }
   .hm-block-b { min-height: 140px; }
 }
+
+/* 모바일: 로고를 메뉴 줄 맨 앞에 표시 (홈 버튼 대신 로고로 홈 이동) */
+@media (max-width: 720px) {
+  .lg-brand { display: block; flex: 0 0 auto; padding: 0 8px 0 2px; }
+  .lg-brand .lg-logo { font-size: 1rem; white-space: nowrap; }
+}

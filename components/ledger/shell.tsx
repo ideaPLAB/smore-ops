@@ -63,13 +63,13 @@ function ScreenHost({ screen }: { screen: ScreenId }) {
 function ShellInner() {
   const { role, setRole, session, logout } = useRole();
   const tabs = ROLE_TABS[role];
-  const [screen, setScreen] = useState<ScreenId>(tabs[0]);
+  const [screen, setScreen] = useState<ScreenId>('home');
 
-  // 역할을 바꾸면 접근 불가 화면이면 첫 탭으로 이동 (마스터 전용 미리보기)
+  // 역할을 바꾸면 접근 불가 화면이면 홈으로 이동 (마스터 전용 미리보기)
   function changeRole(r: typeof role) {
     setRole(r);
     const next = ROLE_TABS[r];
-    if (!next.includes(screen)) setScreen(next[0]);
+    if (screen !== 'home' && !next.includes(screen)) setScreen('home');
   }
 
   if (!session) return null;
