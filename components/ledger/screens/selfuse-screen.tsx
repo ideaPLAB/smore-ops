@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { getSelfuseEntries, saveSelfuseReason, getLocations } from '@/lib/ledger/queries';
+import { getSelfuseEntries, saveSelfuseReason, saveSelfuseReasonBulk, getLocations } from '@/lib/ledger/queries';
 import type { SelfuseEntry } from '@/lib/ledger/queries';
 import type { LocationRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
@@ -9,7 +9,9 @@ import { useRole } from '../role-context';
 
 const REASONS = ['시연·촬영', '직원 복지', '매장 비치', '파손 처리', '행사 증정', '기타'];
 
-function SelfuseRow({ entry, onSaved }: { entry: SelfuseEntry; onSaved: () => void }) {
+function SelfuseRow({ entry, onSaved, checked, onToggle }: {
+  entry: SelfuseEntry; onSaved: () => void; checked: boolean; onToggle: () => void;
+}) {
   const [reason, setReason] = useState(entry.reason ?? '');
   const [remark, setRemark] = useState(entry.remark ?? '');
   const [saving, setSaving] = useState(false);
@@ -31,7 +33,12 @@ function SelfuseRow({ entry, onSaved }: { entry: SelfuseEntry; onSaved: () => vo
   }
 
   return (
-    <tr style={{ borderBottom: '1px solid var(--lg-line-soft)', fontSize: '.85rem', background: isDone ? undefined : 'var(--lg-hazel-soft)' }}>
+    <tr style={{ borderBottom: '1px solid var(--lg-line-soft)', fontSize: '.85rem', background: isDone ? undefined : checked ? '#FFE9A8' : 'var(--lg-hazel-soft)' }}>
+      <td style={{ padding: '9px 6px 9px 14px', width: 28 }}>
+        {!isDone && (
+          <input type="checkbox" checked={checked} onChange={onToggle} aria-label={`${entry.product_name} 선택`} />
+        )}
+      </td>
       <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>{entry.entry_date}</td>
       <td style={{ padding: '9px 14px', fontFamily: 'monospace', fontSize: '.78rem', color: 'var(--lg-muted)' }}>{entry.sku}</td>
       <td style={{ padding: '9px 14px' }}>{entry.product_name}</td>
@@ -90,13 +97,19 @@ export function SelfuseScreen() {
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [selectedLoc, setSelectedLoc] = useState('');
   const [uploadMsg, setUploadMsg] = useState('');
+  // 일괄 입력 — 체크한 미처리 건에 같은 사유·적요 한 번에 저장
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkReason, setBulkReason] = useState('');
+  const [bulkRemark, setBulkRemark] = useState('');
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkMsg, setBulkMsg] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   function load() {
     if (isManager && !selectedLoc) { setEntries([]); setLoading(false); return; }
     setLoading(true);
     getSelfuseEntries(selectedLoc || undefined)
-      .then(setEntries)
+      .then((rows) => { setEntries(rows); setSelected(new Set()); })
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
   }
@@ -165,7 +178,45 @@ export function SelfuseScreen() {
     downloadCsv('자가사용.csv', headers, rows);
   }
 
-  const needCount = entries.filter((e) => !e.deducted).length;
+  const pending = entries.filter((e) => !e.deducted);
+  const needCount = pending.length;
+  const allChecked = pending.length > 0 && pending.every((e) => selected.has(e.id));
+  const selectedQty = pending.filter((e) => selected.has(e.id)).reduce((s, e) => s + e.qty, 0);
+
+  function toggle(id: string) {
+    setBulkMsg('');
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setBulkMsg('');
+    setSelected(allChecked ? new Set() : new Set(pending.map((e) => e.id)));
+  }
+
+  async function saveBulk() {
+    const ids = pending.filter((e) => selected.has(e.id)).map((e) => e.id);
+    if (ids.length === 0 || !bulkReason) return;
+    const ok = window.confirm(
+      `선택한 ${ids.length}건 (총 ${selectedQty}개)을 "${bulkReason}" 사유로 저장합니다.\n` +
+      '저장하면 매장 재고에서 차감되고, 되돌리려면 본사에 요청해야 해요.\n\n진행할까요?',
+    );
+    if (!ok) return;
+    setBulkSaving(true); setBulkMsg('');
+    try {
+      const n = await saveSelfuseReasonBulk(ids, bulkReason, bulkRemark);
+      setBulkMsg(`✅ ${n}건 저장 완료`);
+      setBulkReason(''); setBulkRemark('');
+      load();
+    } catch (e) {
+      setBulkMsg(`❌ 오류: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBulkSaving(false);
+    }
+  }
   const doneCount = entries.filter((e) => e.deducted).length;
 
   // 마감일: 매달 5일까지 전월분
@@ -240,9 +291,50 @@ export function SelfuseScreen() {
         <div className="lg-card lg-empty" style={{ marginTop: 12 }}>자가사용 내역 없음</div>
       ) : (
         <div className="lg-card" style={{ marginTop: 12, overflow: 'auto' }}>
+          {needCount > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '10px 14px', marginBottom: 8, background: '#FFF8E1', border: '1px solid #FFD54F', borderRadius: 8, fontSize: '.83rem' }}>
+              <strong style={{ whiteSpace: 'nowrap' }}>
+                {selected.size > 0 ? `${selected.size}건 선택 (총 ${selectedQty}개)` : '일괄 입력: 체크박스로 여러 건 선택'}
+              </strong>
+              <select
+                className="lg-select"
+                value={bulkReason}
+                onChange={(e) => setBulkReason(e.target.value)}
+                disabled={selected.size === 0}
+                style={{ minWidth: 140 }}
+              >
+                <option value="">사유 선택 *</option>
+                {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+              <input
+                className="lg-input"
+                value={bulkRemark}
+                onChange={(e) => setBulkRemark(e.target.value)}
+                placeholder="상세 메모 (선택)"
+                disabled={selected.size === 0}
+                style={{ flex: '1 1 160px', minWidth: 140 }}
+              />
+              <button
+                type="button"
+                className="lg-btn-ghost"
+                style={{ background: 'var(--lg-pine)', color: 'white', border: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}
+                onClick={saveBulk}
+                disabled={bulkSaving || selected.size === 0 || !bulkReason}
+              >{bulkSaving ? '저장 중…' : '선택 항목 일괄 저장'}</button>
+              {selected.size > 0 && (
+                <button type="button" className="lg-btn-ghost" onClick={() => setSelected(new Set())}>선택 해제</button>
+              )}
+              {bulkMsg && <span style={{ width: '100%' }}>{bulkMsg}</span>}
+            </div>
+          )}
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--lg-bg)', fontSize: '.72rem', fontWeight: 700, color: 'var(--lg-muted)' }}>
+                <th style={{ padding: '8px 6px 8px 14px', width: 28 }}>
+                  {needCount > 0 && (
+                    <input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="전체 선택" title="미처리 전체 선택" />
+                  )}
+                </th>
                 <th style={{ textAlign: 'left', padding: '8px 14px' }}>일자</th>
                 <th style={{ textAlign: 'left', padding: '8px 14px' }}>SKU</th>
                 <th style={{ textAlign: 'left', padding: '8px 14px' }}>상품명</th>
@@ -256,14 +348,14 @@ export function SelfuseScreen() {
             </thead>
             <tbody>
               {entries.map((e) => (
-                <SelfuseRow key={e.id} entry={e} onSaved={load} />
+                <SelfuseRow key={e.id} entry={e} onSaved={load} checked={selected.has(e.id)} onToggle={() => toggle(e.id)} />
               ))}
             </tbody>
           </table>
         </div>
       )}
 
-      <p className="lg-hint">노란 칸은 필수값 — 사유 없이 저장할 수 없습니다. 저장 시 매장 재고에서 차감 처리됩니다.</p>
+      <p className="lg-hint">노란 칸은 필수값 — 사유 없이 저장할 수 없습니다. 저장 시 매장 재고에서 차감 처리됩니다. 사유가 같은 건은 체크 후 일괄 저장하세요.</p>
     </div>
   );
 }

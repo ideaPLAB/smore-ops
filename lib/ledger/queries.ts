@@ -648,6 +648,19 @@ export async function saveSelfuseReason(entryId: string, reason: string, remark:
   if (error) throw error;
 }
 
+// 여러 건에 같은 사유·적요 일괄 저장 — 이미 차감된 행은 건드리지 않음 (재차감 방지는 트리거가, 덮어쓰기 방지는 필터가)
+export async function saveSelfuseReasonBulk(entryIds: string[], reason: string, remark: string): Promise<number> {
+  if (entryIds.length === 0) return 0;
+  const { data, error } = await client()
+    .from('self_use_entries')
+    .update({ reason, remark: remark || null })
+    .in('id', entryIds)
+    .eq('deducted', false)
+    .select('id');
+  if (error) throw error;
+  return (data ?? []).length;
+}
+
 // ── 가챠머신 ──────────────────────────────────────────────────────────────────
 
 export interface GachaSlot {
