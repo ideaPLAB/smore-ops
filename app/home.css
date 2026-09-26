@@ -67,14 +67,6 @@
 .nt-editor { max-width: none !important; display: flex; flex-direction: column; gap: 6px; }
 .nt-editor-h { margin: 0 0 6px; font-weight: 600; font-size: 0.95rem; }
 .nt-field { width: 100%; box-sizing: border-box; margin-bottom: 8px; font-family: inherit; }
-.nt-textarea { min-height: 160px; resize: vertical; line-height: 1.6; }
-.nt-thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
-.nt-thumb { position: relative; width: 84px; height: 84px; border-radius: 10px; border: 1px solid var(--lg-line); overflow: hidden; background: var(--lg-bg); }
-.nt-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.nt-thumb button { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: rgba(0,0,0,.65); color: #fff; font-size: 0.8rem; line-height: 20px; padding: 0; cursor: pointer; }
-.nt-add { display: flex; align-items: center; justify-content: center; font-size: 0.78rem; color: var(--lg-muted); cursor: pointer; border-style: dashed; }
-.nt-add:hover { color: var(--lg-ink); }
-.nt-err { margin: 0; font-size: 0.76rem; color: var(--lg-rust); }
 .nt-check { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 0.84rem; color: var(--lg-ink); cursor: pointer; }
 .nt-editor-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
 .nt-save { width: auto !important; margin-top: 0 !important; padding: 10px 28px !important; }
@@ -161,3 +153,6 @@
   .mn-doc { padding: 14px 14px 18px; }
   .mn-prose-edit { min-height: 240px; padding: 12px; }
 }
+
+/* 공지 본문 (에디터 형식) */
+.nt-rich { margin-bottom: 12px; }

@@ -1,8 +1,8 @@
 'use client';
 
-// 운영매뉴얼 Rich Text — Tiptap v3 (메인페이지 Phase 3)
-// ManualEditor: 본사·마스터 작성/수정용 (툴바: 제목·굵게·목록·표·이미지·링크 등)
-// ManualViewer: 전 역할 조회용 (같은 확장으로 읽기 전용 렌더 → 작성 화면과 보기 화면 모양이 같음)
+// 운영매뉴얼·공지사항 본문 Rich Text — Tiptap v3 (메인페이지 Phase 3)
+// RichEditor: 본사·마스터 작성/수정용 (툴바: 제목·굵게·목록·표·이미지·링크 등)
+// RichViewer: 전 역할 조회용 (같은 확장으로 읽기 전용 렌더 → 작성 화면과 보기 화면 모양이 같음)
 
 import { useRef, useState, ChangeEvent } from 'react';
 import { useEditor, useEditorState, EditorContent, Editor } from '@tiptap/react';
@@ -10,7 +10,7 @@ import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
 import { TableKit } from '@tiptap/extension-table';
 import { Placeholder } from '@tiptap/extensions';
-import { MANUAL_IMAGE_ACCEPT, MANUAL_IMAGE_MAX_BYTES, DocNode } from '@/lib/ledger/manuals';
+import { CONTENT_IMAGE_ACCEPT, CONTENT_IMAGE_MAX_BYTES, DocNode } from '@/lib/ledger/rich-doc';
 
 function extensions(editable: boolean) {
   return [
@@ -120,7 +120,7 @@ function Toolbar({ editor, uploading, onPickImage }: { editor: Editor; uploading
 
 // 작성·수정 에디터. 이미지는 고르는 즉시 업로드해 공개 URL 로 삽입하고, 올린 URL 은 onUploaded 로 알린다
 // (저장 안 하고 취소하면 부모가 그 파일들을 정리).
-export function ManualEditor({ initial, onChange, uploadImage, onUploaded, onError }: {
+export function RichEditor({ initial, onChange, uploadImage, onUploaded, onError }: {
   initial: DocNode | null;
   onChange: (doc: DocNode) => void;
   uploadImage: (f: File) => Promise<string>;
@@ -135,9 +135,9 @@ export function ManualEditor({ initial, onChange, uploadImage, onUploaded, onErr
     const ed = editorRef.current;
     if (!ed) return;
     const imgs = files.filter(isImageFile);
-    const tooBig = imgs.filter((f) => f.size > MANUAL_IMAGE_MAX_BYTES);
+    const tooBig = imgs.filter((f) => f.size > CONTENT_IMAGE_MAX_BYTES);
     if (tooBig.length) onError(`10MB가 넘는 이미지는 올릴 수 없습니다: ${tooBig.map((f) => f.name).join(', ')}`);
-    const ok = imgs.filter((f) => f.size <= MANUAL_IMAGE_MAX_BYTES);
+    const ok = imgs.filter((f) => f.size <= CONTENT_IMAGE_MAX_BYTES);
     if (!ok.length) return;
     setUploading(true);
     try {
@@ -195,13 +195,13 @@ export function ManualEditor({ initial, onChange, uploadImage, onUploaded, onErr
     <div className="mn-editor-box">
       <Toolbar editor={editor} uploading={uploading} onPickImage={() => fileRef.current?.click()} />
       <EditorContent editor={editor} />
-      <input ref={fileRef} type="file" accept={MANUAL_IMAGE_ACCEPT} multiple hidden onChange={pick} />
+      <input ref={fileRef} type="file" accept={CONTENT_IMAGE_ACCEPT} multiple hidden onChange={pick} />
     </div>
   );
 }
 
 // 읽기 전용 보기
-export function ManualViewer({ doc }: { doc: DocNode }) {
+export function RichViewer({ doc }: { doc: DocNode }) {
   const editor = useEditor(
     {
       extensions: extensions(false),

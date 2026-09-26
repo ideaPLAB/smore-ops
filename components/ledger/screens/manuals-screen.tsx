@@ -6,11 +6,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRole } from '../role-context';
-import { ManualEditor, ManualViewer } from '../manual-editor';
-import {
-  listManuals, saveManual, deleteManual, uploadManualImage, removeManualImages, imageUrlsIn, isEmptyDoc,
-  MANUAL_CATEGORIES, ManualCategory, ManualRow, DocNode,
-} from '@/lib/ledger/manuals';
+import { RichEditor, RichViewer } from '../rich-editor';
+import { listManuals, saveManual, deleteManual, MANUAL_CATEGORIES, ManualCategory, ManualRow } from '@/lib/ledger/manuals';
+import { uploadContentImage, removeContentImages, imageUrlsIn, isEmptyDoc, DocNode } from '@/lib/ledger/rich-doc';
 import { fmtNoticeDate } from '@/lib/ledger/notices';
 
 type Draft = {
@@ -21,6 +19,8 @@ type Draft = {
   initial: DocNode | null; // 에디터 첫 내용 (수정 시 기존 문서)
   originalImages: string[]; // 수정 전 문서에 있던 이미지 (저장 후 빠진 것 정리)
 };
+
+const uploadManual = (f: File) => uploadContentImage('manuals', f);
 
 function errText(e: unknown) {
   return (e as Error)?.message ?? String(e);
@@ -98,7 +98,7 @@ export function ManualsScreen({ initialOpenId, initialCategory }: { initialOpenI
     if (!draft) return;
     const dirty = draft.title.trim() || !isEmptyDoc(docRef.current) || uploadedRef.current.length;
     if (dirty && !window.confirm('작성 중인 내용이 저장되지 않고 사라집니다. 취소할까요?')) return;
-    await removeManualImages(uploadedRef.current); // 저장 안 한 이미지 정리
+    await removeContentImages(uploadedRef.current); // 저장 안 한 이미지 정리
     uploadedRef.current = [];
     setDraft(null);
   }
@@ -118,7 +118,7 @@ export function ManualsScreen({ initialOpenId, initialCategory }: { initialOpenI
       });
       // 저장된 문서에 없는 이미지(수정 중 뺀 기존 이미지 + 올렸다가 지운 이미지) 정리
       const kept = new Set(imageUrlsIn(doc));
-      await removeManualImages([...draft.originalImages, ...uploadedRef.current].filter((u) => !kept.has(u)));
+      await removeContentImages([...draft.originalImages, ...uploadedRef.current].filter((u) => !kept.has(u)));
       uploadedRef.current = [];
       setDraft(null);
       setCat(draft.category);
@@ -136,7 +136,7 @@ export function ManualsScreen({ initialOpenId, initialCategory }: { initialOpenI
     if (!session || !window.confirm(`"${m.title}" 매뉴얼을 삭제할까요? 되돌릴 수 없습니다.`)) return;
     try {
       await deleteManual(session.id, m.id);
-      await removeManualImages(imageUrlsIn(m.content));
+      await removeContentImages(imageUrlsIn(m.content));
       setOpenId(null);
       await reload();
       flash('매뉴얼을 삭제했습니다');
@@ -188,11 +188,11 @@ export function ManualsScreen({ initialOpenId, initialCategory }: { initialOpenI
           />
 
           <label className="lg-label">내용</label>
-          <ManualEditor
+          <RichEditor
             key={draft.id ?? 'new'}
             initial={draft.initial}
             onChange={(d) => { docRef.current = d; }}
-            uploadImage={uploadManualImage}
+            uploadImage={uploadManual}
             onUploaded={(u) => { uploadedRef.current = [...uploadedRef.current, u]; }}
             onError={flash}
           />
@@ -246,7 +246,7 @@ export function ManualsScreen({ initialOpenId, initialCategory }: { initialOpenI
             {open.author_name ?? '—'} · 작성 {fmtNoticeDate(open.created_at)}
             {open.updated_at !== open.created_at && ` · 최종 수정 ${fmtNoticeDate(open.updated_at, true)}`}
           </p>
-          {isEmptyDoc(open.content) ? <p className="hm-empty">내용이 없습니다.</p> : <ManualViewer doc={open.content} />}
+          {isEmptyDoc(open.content) ? <p className="hm-empty">내용이 없습니다.</p> : <RichViewer doc={open.content} />}
           {canWrite && (
             <div className="nt-actions mn-doc-actions">
               <button type="button" className="lg-btn-ghost" onClick={() => startEdit(open)}>수정</button>

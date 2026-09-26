@@ -3,135 +3,33 @@
 // 공지사항 전체보기 — 홈 공지 칸의 "더보기"/공지 제목 클릭으로 진입 (메뉴에는 없음)
 // 조회: 전 역할 / 작성·수정·삭제·고정: 본사·마스터 (RPC 에서 한 번 더 확인)
 
-import { useEffect, useState, ChangeEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRole } from '../role-context';
+import { RichEditor, RichViewer } from '../rich-editor';
+import { listNotices, saveNotice, deleteNotice, fmtNoticeDate, isNewNotice, NoticeRow } from '@/lib/ledger/notices';
 import {
-  listNotices, saveNotice, deleteNotice, uploadNoticeImage, removeNoticeImages, noticeImageUrl,
-  fmtNoticeDate, isNewNotice, NoticeRow, NOTICE_IMAGE_ACCEPT, NOTICE_IMAGE_MAX_BYTES,
-} from '@/lib/ledger/notices';
+  uploadContentImage, removeContentImages, contentImageUrl, imageUrlsIn, isDoc, isEmptyDoc, docToText, textToDoc, DocNode,
+} from '@/lib/ledger/rich-doc';
 
+// 본문은 매뉴얼과 같은 에디터(표·이미지·목록). 에디터 내용·올린 이미지는 ref 로 보관 (입력마다 리렌더 불필요)
 type Draft = {
   id: string | null;
   title: string;
-  body: string;
   pinned: boolean;
-  keptPaths: string[]; // 수정 시 그대로 둘 기존 이미지
-  removedPaths: string[]; // 수정 시 빼기로 한 기존 이미지 (저장 성공 후 storage 에서 삭제)
-  newFiles: File[]; // 새로 붙인 이미지 (저장할 때 업로드)
+  initial: DocNode | null; // 에디터 첫 내용 (옛 공지는 body+첨부 이미지를 문서로 바꿔서)
+  originalImages: string[]; // 수정 전 공지에 있던 이미지 URL (저장 후 빠진 것 정리)
 };
 
-const EMPTY_DRAFT: Draft = { id: null, title: '', body: '', pinned: false, keptPaths: [], removedPaths: [], newFiles: [] };
+const EMPTY_DRAFT: Draft = { id: null, title: '', pinned: false, initial: null, originalImages: [] };
+const uploadNotice = (f: File) => uploadContentImage('notices', f);
 
 function errText(e: unknown) {
   return (e as Error)?.message ?? String(e);
 }
 
-// 새로 붙인 파일 미리보기 — objectURL 은 한 번만 만들고 사라질 때 해제
-function FilePreview({ file }: { file: File }) {
-  const [url, setUrl] = useState('');
-  useEffect(() => {
-    const u = URL.createObjectURL(file);
-    setUrl(u);
-    return () => URL.revokeObjectURL(u);
-  }, [file]);
-  // eslint-disable-next-line @next/next/no-img-element
-  return url ? <img src={url} alt="" /> : null;
-}
-
-function NoticeEditor({ draft, setDraft, saving, onSave, onCancel }: {
-  draft: Draft;
-  setDraft: (d: Draft) => void;
-  saving: boolean;
-  onSave: () => void;
-  onCancel: () => void;
-}) {
-  const [fileErr, setFileErr] = useState('');
-
-  function addFiles(e: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    e.target.value = '';
-    const tooBig = files.filter((f) => f.size > NOTICE_IMAGE_MAX_BYTES);
-    setFileErr(tooBig.length ? `10MB가 넘는 이미지는 올릴 수 없습니다: ${tooBig.map((f) => f.name).join(', ')}` : '');
-    const ok = files.filter((f) => f.size <= NOTICE_IMAGE_MAX_BYTES);
-    if (ok.length) setDraft({ ...draft, newFiles: [...draft.newFiles, ...ok] });
-  }
-
-  return (
-    <div className="lg-form-card nt-editor">
-      <p className="nt-editor-h">{draft.id ? '공지 수정' : '새 공지 작성'}</p>
-
-      <label className="lg-label" htmlFor="nt-title">제목</label>
-      <input
-        id="nt-title"
-        className="lg-input nt-field"
-        value={draft.title}
-        maxLength={120}
-        onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-        placeholder="공지 제목"
-      />
-
-      <label className="lg-label" htmlFor="nt-body">내용</label>
-      <textarea
-        id="nt-body"
-        className="lg-input nt-field nt-textarea"
-        value={draft.body}
-        onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-        placeholder="공지 내용 (줄바꿈 그대로 표시됩니다)"
-      />
-
-      <label className="lg-label">이미지</label>
-      <div className="nt-thumbs">
-        {draft.keptPaths.map((p) => (
-          <div key={p} className="nt-thumb">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={noticeImageUrl(p)} alt="" />
-            <button
-              type="button"
-              aria-label="이미지 빼기"
-              onClick={() => setDraft({
-                ...draft,
-                keptPaths: draft.keptPaths.filter((x) => x !== p),
-                removedPaths: [...draft.removedPaths, p],
-              })}
-            >
-              ×
-            </button>
-          </div>
-        ))}
-        {draft.newFiles.map((f, i) => (
-          <div key={`${f.name}-${i}`} className="nt-thumb">
-            <FilePreview file={f} />
-            <button
-              type="button"
-              aria-label="이미지 빼기"
-              onClick={() => setDraft({ ...draft, newFiles: draft.newFiles.filter((_, j) => j !== i) })}
-            >
-              ×
-            </button>
-          </div>
-        ))}
-        <label className="nt-thumb nt-add">
-          + 추가
-          <input type="file" accept={NOTICE_IMAGE_ACCEPT} multiple onChange={addFiles} hidden />
-        </label>
-      </div>
-      {fileErr && <p className="nt-err">{fileErr}</p>}
-
-      <label className="nt-check">
-        <input type="checkbox" checked={draft.pinned} onChange={(e) => setDraft({ ...draft, pinned: e.target.checked })} />
-        중요 공지로 상단 고정
-      </label>
-
-      <div className="nt-editor-btns">
-        <button type="button" className="lg-btn-secondary" onClick={onCancel} disabled={saving}>
-          취소
-        </button>
-        <button type="button" className="lg-btn-main nt-save" onClick={onSave} disabled={saving || !draft.title.trim()}>
-          {saving ? '저장 중…' : '저장'}
-        </button>
-      </div>
-    </div>
-  );
+// 공지의 이미지 URL 전부 (본문 안 + 옛 첨부)
+function noticeImages(n: NoticeRow): string[] {
+  return [...imageUrlsIn(n.content), ...n.image_paths.map(contentImageUrl)];
 }
 
 export function NoticesScreen({ initialOpenId }: { initialOpenId: string | null }) {
@@ -163,32 +61,55 @@ export function NoticesScreen({ initialOpenId }: { initialOpenId: string | null 
     reload();
   }, []);
 
-  function startEdit(n: NoticeRow) {
-    setDraft({ id: n.id, title: n.title, body: n.body, pinned: n.pinned, keptPaths: [...n.image_paths], removedPaths: [], newFiles: [] });
+  // 에디터 현재 내용·이번 편집에서 올린 이미지
+  const docRef = useRef<DocNode | null>(null);
+  const uploadedRef = useRef<string[]>([]);
+
+  function beginDraft(d: Draft) {
+    docRef.current = d.initial;
+    uploadedRef.current = [];
+    setDraft(d);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function startEdit(n: NoticeRow) {
+    // 옛 공지(content 없음)는 본문 텍스트 + 첨부 이미지를 문서로 바꿔서 연다 → 저장하면 새 형식으로 전환
+    const initial = isDoc(n.content) ? n.content : textToDoc(n.body, n.image_paths.map(contentImageUrl));
+    beginDraft({ id: n.id, title: n.title, pinned: n.pinned, initial, originalImages: noticeImages(n) });
+  }
+
+  async function cancelDraft() {
+    if (!draft) return;
+    const dirty = draft.title.trim() || !isEmptyDoc(docRef.current) || uploadedRef.current.length;
+    if (dirty && !window.confirm('작성 중인 내용이 저장되지 않고 사라집니다. 취소할까요?')) return;
+    await removeContentImages(uploadedRef.current); // 저장 안 한 이미지 정리
+    uploadedRef.current = [];
+    setDraft(null);
   }
 
   async function handleSave() {
     if (!draft || !session) return;
+    const doc = docRef.current ?? { type: 'doc', content: [] };
     setSaving(true);
-    const uploaded: string[] = [];
     try {
-      for (const f of draft.newFiles) uploaded.push(await uploadNoticeImage(f));
       const id = await saveNotice(session.id, {
         id: draft.id,
         title: draft.title.trim(),
-        body: draft.body,
-        imagePaths: [...draft.keptPaths, ...uploaded],
+        body: docToText(doc), // 목록·검색용 줄글
+        imagePaths: [], // 이미지는 본문 안으로
         pinned: draft.pinned,
+        content: doc,
       });
-      await removeNoticeImages(draft.removedPaths);
+      // 저장된 본문에 없는 이미지(수정 중 뺀 기존 이미지 + 올렸다가 지운 이미지) 정리
+      const kept = new Set(imageUrlsIn(doc));
+      await removeContentImages([...draft.originalImages, ...uploadedRef.current].filter((u) => !kept.has(u)));
+      uploadedRef.current = [];
       setDraft(null);
       setOpenId(id);
       await reload();
       flash(draft.id ? '공지를 수정했습니다' : '공지를 등록했습니다');
     } catch (e) {
-      await removeNoticeImages(uploaded); // 저장 실패 시 방금 올린 이미지 정리
-      flash(`저장 실패: ${errText(e)}`);
+      flash(`저장 실패: ${errText(e)}`); // 에디터는 그대로 두어 다시 저장 가능
     } finally {
       setSaving(false);
     }
@@ -198,7 +119,7 @@ export function NoticesScreen({ initialOpenId }: { initialOpenId: string | null 
     if (!session || !window.confirm(`"${n.title}" 공지를 삭제할까요? 되돌릴 수 없습니다.`)) return;
     try {
       await deleteNotice(session.id, n.id);
-      await removeNoticeImages(n.image_paths);
+      await removeContentImages(noticeImages(n));
       if (openId === n.id) setOpenId(null);
       await reload();
       flash('공지를 삭제했습니다');
@@ -210,7 +131,9 @@ export function NoticesScreen({ initialOpenId }: { initialOpenId: string | null 
   async function togglePin(n: NoticeRow) {
     if (!session) return;
     try {
-      await saveNotice(session.id, { id: n.id, title: n.title, body: n.body, imagePaths: n.image_paths, pinned: !n.pinned });
+      await saveNotice(session.id, {
+        id: n.id, title: n.title, body: n.body, imagePaths: n.image_paths, pinned: !n.pinned, content: n.content,
+      });
       await reload();
       flash(n.pinned ? '고정을 해제했습니다' : '상단에 고정했습니다');
     } catch (e) {
@@ -222,14 +145,51 @@ export function NoticesScreen({ initialOpenId }: { initialOpenId: string | null 
     <div className="nt-wrap">
       {canWrite && !draft && (
         <div className="nt-top">
-          <button type="button" className="lg-btn-ghost" onClick={() => setDraft({ ...EMPTY_DRAFT })}>
+          <button type="button" className="lg-btn-ghost" onClick={() => beginDraft({ ...EMPTY_DRAFT })}>
             + 새 공지
           </button>
         </div>
       )}
 
       {draft && (
-        <NoticeEditor draft={draft} setDraft={setDraft} saving={saving} onSave={handleSave} onCancel={() => setDraft(null)} />
+        <div className="lg-form-card nt-editor">
+          <p className="nt-editor-h">{draft.id ? '공지 수정' : '새 공지 작성'}</p>
+
+          <label className="lg-label" htmlFor="nt-title">제목</label>
+          <input
+            id="nt-title"
+            className="lg-input nt-field"
+            value={draft.title}
+            maxLength={120}
+            onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+            placeholder="공지 제목"
+          />
+
+          <label className="lg-label">내용</label>
+          <RichEditor
+            key={draft.id ?? 'new'}
+            initial={draft.initial}
+            onChange={(d) => { docRef.current = d; }}
+            uploadImage={uploadNotice}
+            onUploaded={(u) => { uploadedRef.current = [...uploadedRef.current, u]; }}
+            onError={flash}
+          />
+          <p className="mn-hint">이미지는 🖼 버튼, 붙여넣기, 끌어다 놓기 모두 됩니다 (10MB 이하). 표 안에 커서를 두면 행·열 편집 버튼이 나옵니다.</p>
+
+          <label className="nt-check">
+            <input type="checkbox" checked={draft.pinned} onChange={(e) => setDraft({ ...draft, pinned: e.target.checked })} />
+            중요 공지로 상단 고정
+          </label>
+
+          <div className="nt-editor-btns">
+            <button type="button" className="lg-btn-secondary" onClick={cancelDraft} disabled={saving}>
+              취소
+            </button>
+            <button type="button" className="lg-btn-main nt-save" onClick={handleSave} disabled={saving || !draft.title.trim()}>
+              {saving ? '저장 중…' : '저장'}
+            </button>
+          </div>
+        </div>
       )}
 
       {loadErr ? (
@@ -256,16 +216,23 @@ export function NoticesScreen({ initialOpenId }: { initialOpenId: string | null 
                       {n.author_name ?? '—'} · {fmtNoticeDate(n.created_at, true)}
                       {n.updated_at !== n.created_at && ` (수정 ${fmtNoticeDate(n.updated_at, true)})`}
                     </p>
-                    {n.body && <p className="nt-text">{n.body}</p>}
-                    {n.image_paths.length > 0 && (
-                      <div className="nt-images">
-                        {n.image_paths.map((p) => (
-                          <a key={p} href={noticeImageUrl(p)} target="_blank" rel="noreferrer">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={noticeImageUrl(p)} alt="" />
-                          </a>
-                        ))}
-                      </div>
+                    {isDoc(n.content) ? (
+                      <div className="nt-rich"><RichViewer doc={n.content} /></div>
+                    ) : (
+                      <>
+                        {/* 옛 공지 (v0_37 이전): 줄글 + 첨부 이미지 */}
+                        {n.body && <p className="nt-text">{n.body}</p>}
+                        {n.image_paths.length > 0 && (
+                          <div className="nt-images">
+                            {n.image_paths.map((p) => (
+                              <a key={p} href={contentImageUrl(p)} target="_blank" rel="noreferrer">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={contentImageUrl(p)} alt="" />
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </>
                     )}
                     {canWrite && (
                       <div className="nt-actions">

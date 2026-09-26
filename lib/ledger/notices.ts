@@ -1,18 +1,17 @@
 // 공지사항 조회·작성 (schema_patch_v0_36).
 // 조회는 테이블 직접 SELECT, 쓰기는 RPC 경유 — RPC 안에서 본사·마스터만 허용.
-// 이미지는 storage 'ops-content' 버킷의 notices/ 아래에 저장, 경로만 image_paths 에 보관.
+// 본문은 Tiptap 문서(content, schema_patch_v0_37) — 이미지도 본문 안에 (rich-doc.ts, ops-content 버킷 notices/).
+// 옛 공지(v0_37 이전)는 content 가 비어 있고 body 텍스트 + image_paths(첨부 이미지 경로)로 표시.
 import { getSupabaseClient } from '@/lib/supabase';
 import { SupabaseMissingError } from './queries';
-
-const BUCKET = 'ops-content';
-export const NOTICE_IMAGE_MAX_BYTES = 10 * 1024 * 1024; // 버킷 제한과 동일
-export const NOTICE_IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif';
+import type { DocNode } from './rich-doc';
 
 export interface NoticeRow {
   id: string;
   title: string;
   body: string;
   image_paths: string[];
+  content: DocNode;
   pinned: boolean;
   author_name: string | null;
   created_at: string;
@@ -29,7 +28,7 @@ function client() {
 export async function listNotices(limit?: number): Promise<NoticeRow[]> {
   let q = client()
     .from('notices')
-    .select('id,title,body,image_paths,pinned,author_name,created_at,updated_at')
+    .select('id,title,body,image_paths,content,pinned,author_name,created_at,updated_at')
     .order('pinned', { ascending: false })
     .order('created_at', { ascending: false });
   if (limit) q = q.limit(limit);
@@ -38,31 +37,9 @@ export async function listNotices(limit?: number): Promise<NoticeRow[]> {
   return (data ?? []) as NoticeRow[];
 }
 
-export function noticeImageUrl(path: string): string {
-  return client().storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-}
-
-export async function uploadNoticeImage(file: File): Promise<string> {
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const path = `notices/${crypto.randomUUID()}.${ext}`;
-  const { error } = await client().storage.from(BUCKET).upload(path, file, { upsert: false });
-  if (error) throw error;
-  return path;
-}
-
-// 이미지 정리는 실패해도 공지 저장/삭제 자체는 성공으로 둔다 (고아 파일만 남음)
-export async function removeNoticeImages(paths: string[]): Promise<void> {
-  if (paths.length === 0) return;
-  try {
-    await client().storage.from(BUCKET).remove(paths);
-  } catch {
-    /* noop */
-  }
-}
-
 export async function saveNotice(
   actorId: string,
-  input: { id: string | null; title: string; body: string; imagePaths: string[]; pinned: boolean },
+  input: { id: string | null; title: string; body: string; imagePaths: string[]; pinned: boolean; content: DocNode },
 ): Promise<string> {
   const { data, error } = await client().rpc('app_save_notice', {
     p_actor: actorId,
@@ -71,6 +48,7 @@ export async function saveNotice(
     p_body: input.body,
     p_image_paths: input.imagePaths,
     p_pinned: input.pinned,
+    p_content: input.content,
   });
   if (error) throw error;
   return data as string;
