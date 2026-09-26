@@ -79,9 +79,11 @@ function SelfuseRow({ entry, onSaved }: { entry: SelfuseEntry; onSaved: () => vo
 }
 
 export function SelfuseScreen() {
-  const { role } = useRole();
+  const { role, locationName } = useRole();
   // 포스 리스트 업로드·엑셀 다운로드는 본사·마스터 전용 — 매장/물류는 사유 입력만
   const canManage = role === 'admin' || role === 'hq';
+  // 매니저는 자기 매장 것만 — 매장 선택 드롭다운 없이 로그인 매장으로 고정
+  const isManager = role === 'manager';
   const [entries, setEntries] = useState<SelfuseEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -91,6 +93,7 @@ export function SelfuseScreen() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   function load() {
+    if (isManager && !selectedLoc) { setEntries([]); setLoading(false); return; }
     setLoading(true);
     getSelfuseEntries(selectedLoc || undefined)
       .then(setEntries)
@@ -104,8 +107,14 @@ export function SelfuseScreen() {
       .catch(() => {});
   }, []);
 
+  // 매니저: 로그인 매장 id로 고정 (매칭 실패 시 빈 목록 — 전체 매장으로 새지 않게)
+  const ownLoc = isManager ? locations.find((l) => l.name === locationName) : undefined;
+  useEffect(() => {
+    if (isManager) setSelectedLoc(ownLoc?.id ?? '');
+  }, [isManager, ownLoc?.id]);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { load(); }, [selectedLoc]);
+  useEffect(() => { load(); }, [selectedLoc, isManager]);
 
   function handleUploadClick() {
     // 전체 매장 상태면 파일에 매장 컬럼이 없을 때 전부 "매장 불명"으로 걸러짐 → 먼저 안내.
@@ -169,6 +178,9 @@ export function SelfuseScreen() {
       <div className="lg-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
         <p className="lg-sub">포스 자가사용 내역 — 매달 5일까지 전월분 사유 입력</p>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {isManager ? (
+            <span className="lg-sub" style={{ fontWeight: 600 }}>{ownLoc?.name ?? '매장 정보 없음'}</span>
+          ) : (
           <select
             className="lg-select"
             value={selectedLoc}
@@ -177,6 +189,7 @@ export function SelfuseScreen() {
             <option value="">전체 매장</option>
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
+          )}
           {canManage && (<>
           <button
             type="button"
