@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { RoleProvider, useRole } from './role-context';
-import { COMMON_SCREENS, ROLE_TABS, ROLE_NM, ROLES, SCREEN_NM, ScreenId, GoFn } from '@/lib/ledger/roles';
+import { COMMON_SCREENS, ROLE_TABS, ROLE_NM, ROLES, SCREEN_NM, ScreenId, GoFn, GoOpts } from '@/lib/ledger/roles';
 import { TransitScreen } from './screens/transit-screen';
 import { BoardScreen } from './screens/board-screen';
 import { DispatchScreen } from './screens/dispatch-screen';
@@ -21,13 +21,16 @@ import { WikiScreen } from './screens/wiki-screen';
 import { LoginScreen } from './screens/login-screen';
 import { HomeScreen } from './screens/home-screen';
 import { NoticesScreen } from './screens/notices-screen';
+import { ManualsScreen } from './screens/manuals-screen';
 
-function ScreenHost({ screen, go, noticeId }: { screen: ScreenId; go: GoFn; noticeId: string | null }) {
+function ScreenHost({ screen, go, opts }: { screen: ScreenId; go: GoFn; opts: GoOpts }) {
   switch (screen) {
     case 'home':
       return <HomeScreen go={go} />;
     case 'notices':
-      return <NoticesScreen initialOpenId={noticeId} />;
+      return <NoticesScreen initialOpenId={opts.noticeId ?? null} />;
+    case 'manuals':
+      return <ManualsScreen initialOpenId={opts.manualId ?? null} initialCategory={opts.category ?? null} />;
     case 'board':
       return <BoardScreen />;
     case 'stock':
@@ -67,10 +70,10 @@ function ShellInner() {
   const { role, setRole, session, logout } = useRole();
   const tabs = ROLE_TABS[role];
   const [screen, setScreen] = useState<ScreenId>('home');
-  const [noticeId, setNoticeId] = useState<string | null>(null);
+  const [goOpts, setGoOpts] = useState<GoOpts>({});
 
   const go: GoFn = (next, opts) => {
-    setNoticeId(opts?.noticeId ?? null);
+    setGoOpts(opts ?? {});
     setScreen(next);
   };
 
@@ -151,7 +154,7 @@ function ShellInner() {
         </header>
 
         <main className="lg-main">
-          <ScreenHost screen={screen} go={go} noticeId={noticeId} />
+          <ScreenHost screen={screen} go={go} opts={goOpts} />
         </main>
 
         <footer className="lg-foot">모든 전표는 히스토리에 적재됩니다 · 재고 잔액은 이벤트 합산이 원천</footer>
