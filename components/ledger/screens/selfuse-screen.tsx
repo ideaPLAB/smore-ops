@@ -5,6 +5,7 @@ import { getSelfuseEntries, saveSelfuseReason, getLocations } from '@/lib/ledger
 import type { SelfuseEntry } from '@/lib/ledger/queries';
 import type { LocationRow } from '@/lib/ledger/types';
 import { downloadCsv } from '@/lib/ledger/csv';
+import { useRole } from '../role-context';
 
 const REASONS = ['시연·촬영', '직원 복지', '매장 비치', '파손 처리', '행사 증정', '기타'];
 
@@ -78,6 +79,9 @@ function SelfuseRow({ entry, onSaved }: { entry: SelfuseEntry; onSaved: () => vo
 }
 
 export function SelfuseScreen() {
+  const { role } = useRole();
+  // 포스 리스트 업로드·엑셀 다운로드는 본사·마스터 전용 — 매장/물류는 사유 입력만
+  const canManage = role === 'admin' || role === 'hq';
   const [entries, setEntries] = useState<SelfuseEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -173,6 +177,7 @@ export function SelfuseScreen() {
             <option value="">전체 매장</option>
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
+          {canManage && (<>
           <button
             type="button"
             className="lg-btn-ghost"
@@ -187,6 +192,7 @@ export function SelfuseScreen() {
             disabled={entries.length === 0}
             title="내보낼 데이터가 없습니다"
           >⬇ 엑셀 다운로드</button>
+          </>)}
         </div>
       </div>
 
