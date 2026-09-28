@@ -4,13 +4,14 @@
 // 월간 달력 + 이번 달(또는 고른 날) 일정 목록. 유형별 색: 입고/팝업/정산마감/기타
 // 조회: 전 역할 / 등록·수정·삭제: 본사·마스터 (RPC 에서 한 번 더 확인)
 
-import { useEffect, useMemo, useState } from 'react';
+import { CSSProperties, useEffect, useMemo, useState } from 'react';
 import { useRole } from '../role-context';
 import { getLocations } from '@/lib/ledger/queries';
 import type { LocationRow } from '@/lib/ledger/types';
 import {
   listEvents, saveEvent, deleteEvent, monthCells, eventCovers, fmtEventRange, parseYmd, todayYmd,
-  EVENT_TYPES, EventType, CalendarEvent,
+  listEventTypes, saveEventType, deleteEventType, typeColor, EVENT_COLORS, DEFAULT_EVENT_TYPES,
+  EventType, EventTypeRow, CalendarEvent,
 } from '@/lib/ledger/calendar';
 
 type Draft = {
@@ -31,9 +32,35 @@ function errText(e: unknown) {
   return (e as Error)?.message ?? String(e);
 }
 
-export function EventTypeTag({ type }: { type: EventType }) {
-  return <span className={`cal-tag cal-t-${EVENT_TYPES.indexOf(type)}`}>{type}</span>;
+// 유형 색 → CSS 변수 (진한 색 + 옅은 배경)
+export function typeStyle(color: string): CSSProperties {
+  return { '--cal-c': color, '--cal-s': `${color}1a` } as CSSProperties;
 }
+
+export function EventTypeTag({ type, color }: { type: EventType; color: string }) {
+  return <span className="cal-tag" style={typeStyle(color)}>{type}</span>;
+}
+
+// 유형 목록 (홈 칸·캘린더 화면 공용). 불러오기 실패 시 기본 4종
+export function useEventTypes() {
+  const [types, setTypes] = useState<EventTypeRow[]>(DEFAULT_EVENT_TYPES);
+  const [fromDb, setFromDb] = useState(false);
+  async function reloadTypes() {
+    try {
+      const r = await listEventTypes();
+      setTypes(r.types.length ? r.types : DEFAULT_EVENT_TYPES);
+      setFromDb(r.fromDb);
+    } catch {
+      setFromDb(false);
+    }
+  }
+  useEffect(() => {
+    reloadTypes();
+  }, []);
+  return { types, fromDb, reloadTypes };
+}
+
+type TypeDraft = { oldName: string | null; name: string; color: string };
 
 export function CalendarScreen({ initialDate }: { initialDate: string | null }) {
   const { role, session } = useRole();
@@ -52,6 +79,11 @@ export function CalendarScreen({ initialDate }: { initialDate: string | null }) 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
+  const { types, fromDb, reloadTypes } = useEventTypes();
+  const [typePanel, setTypePanel] = useState(false);
+  const [typeDraft, setTypeDraft] = useState<TypeDraft | null>(null);
+  const [typeBusy, setTypeBusy] = useState(false);
+  const colorOf = (name: string) => typeColor(types, name);
 
   const cells = useMemo(() => monthCells(year, month0), [year, month0]);
   const monthPrefix = `${year}-${String(month0 + 1).padStart(2, '0')}`;
@@ -119,7 +151,7 @@ export function CalendarScreen({ initialDate }: { initialDate: string | null }) 
 
   function beginNew(date: string) {
     setDraft({
-      id: null, title: '', eventDate: date, multi: false, endDate: date, eventType: '입고', locationId: storeFilter, memo: '',
+      id: null, title: '', eventDate: date, multi: false, endDate: date, eventType: types[0]?.name ?? '기타', locationId: storeFilter, memo: '',
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -189,6 +221,102 @@ export function CalendarScreen({ initialDate }: { initialDate: string | null }) 
     }
   }
 
+  // ── 유형 관리 (본사·마스터) ───────────────────────────────
+  const typeCount = (name: string) => (events ?? []).filter((e) => e.event_type === name).length;
+
+  function beginNewType() {
+    const used = new Set(types.map((t) => t.color));
+    setTypeDraft({ oldName: null, name: '', color: EVENT_COLORS.find((c) => !used.has(c)) ?? EVENT_COLORS[0] });
+  }
+
+  async function saveType() {
+    if (!session || !typeDraft || !typeDraft.name.trim()) return;
+    const cur = types.find((t) => t.name === typeDraft.oldName);
+    // 새 유형은 '기타'(맨 끝) 바로 앞 순서로
+    const others = types.filter((t) => t.name !== '기타');
+    const sortOrder = cur ? cur.sort_order : (others.length ? Math.max(...others.map((t) => t.sort_order)) + 10 : 10);
+    setTypeBusy(true);
+    try {
+      const name = await saveEventType(session.id, { oldName: typeDraft.oldName, name: typeDraft.name.trim(), color: typeDraft.color, sortOrder });
+      if (typeDraft.oldName && typeDraft.oldName !== name && draft?.eventType === typeDraft.oldName) setDraft({ ...draft, eventType: name });
+      setTypeDraft(null);
+      // 이름 변경은 DB 에서 일정에도 반영됨 → 유형·일정을 함께 다시 불러와 칩 색이 어긋나지 않게
+      await Promise.all([reloadTypes(), typeDraft.oldName && typeDraft.oldName !== name ? reload() : Promise.resolve()]);
+      flash(typeDraft.oldName ? '유형을 수정했습니다' : '유형을 추가했습니다');
+    } catch (e) {
+      flash(`저장 실패: ${errText(e)}`);
+    } finally {
+      setTypeBusy(false);
+    }
+  }
+
+  async function removeType(t: EventTypeRow) {
+    if (!session || !window.confirm(`"${t.name}" 유형을 삭제할까요?`)) return;
+    setTypeBusy(true);
+    try {
+      await deleteEventType(session.id, t.name);
+      await reloadTypes();
+      flash('유형을 삭제했습니다');
+    } catch (e) {
+      flash(`삭제 실패: ${errText(e)}`);
+    } finally {
+      setTypeBusy(false);
+    }
+  }
+
+  // 위/아래 이동: 이웃 유형과 순서 값 교환
+  async function moveType(i: number, dir: -1 | 1) {
+    const a = types[i];
+    const b = types[i + dir];
+    if (!session || !a || !b) return;
+    const ao = a.sort_order === b.sort_order ? a.sort_order + dir : b.sort_order;
+    setTypeBusy(true);
+    try {
+      await saveEventType(session.id, { oldName: a.name, name: a.name, color: a.color, sortOrder: ao });
+      await saveEventType(session.id, { oldName: b.name, name: b.name, color: b.color, sortOrder: a.sort_order });
+      await reloadTypes();
+    } catch (e) {
+      flash(`순서 변경 실패: ${errText(e)}`);
+    } finally {
+      setTypeBusy(false);
+    }
+  }
+
+  function typeEditor() {
+    if (!typeDraft) return null;
+    return (
+      <div className="cal-tp-edit">
+        <input
+          className="lg-input cal-tp-name"
+          aria-label="유형 이름"
+          value={typeDraft.name}
+          maxLength={20}
+          placeholder="유형 이름 (예: 행사)"
+          onChange={(e) => setTypeDraft({ ...typeDraft, name: e.target.value })}
+        />
+        <div className="cal-colors" role="radiogroup" aria-label="유형 색">
+          {EVENT_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              role="radio"
+              aria-checked={typeDraft.color === c}
+              aria-label={`색 ${c}`}
+              className={`cal-color${typeDraft.color === c ? ' on' : ''}`}
+              style={{ background: c }}
+              onClick={() => setTypeDraft({ ...typeDraft, color: c })}
+            />
+          ))}
+        </div>
+        <EventTypeTag type={typeDraft.name.trim() || '미리보기'} color={typeDraft.color} />
+        <button type="button" className="lg-btn-ghost cal-tp-btn" onClick={() => setTypeDraft(null)} disabled={typeBusy}>취소</button>
+        <button type="button" className="lg-btn-ghost cal-tp-btn" onClick={saveType} disabled={typeBusy || !typeDraft.name.trim()}>
+          {typeDraft.oldName ? '저장' : '추가'}
+        </button>
+      </div>
+    );
+  }
+
   const selDate = selected ? parseYmd(selected) : null;
 
   return (
@@ -239,13 +367,15 @@ export function CalendarScreen({ initialDate }: { initialDate: string | null }) 
 
           <span className="lg-label">유형</span>
           <div className="cal-types" role="radiogroup" aria-label="일정 유형">
-            {EVENT_TYPES.map((t, i) => (
+            {/* 수정 중인 일정의 유형이 목록에 없으면(삭제 경합 등) 그대로 보여줌 */}
+            {[...types.map((t) => t.name), ...(types.some((t) => t.name === draft.eventType) ? [] : [draft.eventType])].map((t) => (
               <button
                 key={t}
                 type="button"
                 role="radio"
                 aria-checked={draft.eventType === t}
-                className={`cal-type cal-t-${i}${draft.eventType === t ? ' on' : ''}`}
+                className={`cal-type${draft.eventType === t ? ' on' : ''}`}
+                style={typeStyle(colorOf(t))}
                 onClick={() => setDraft({ ...draft, eventType: t })}
               >
                 {t}
@@ -289,6 +419,39 @@ export function CalendarScreen({ initialDate }: { initialDate: string | null }) 
         </div>
       )}
 
+      {typePanel && canWrite && (
+        <div className="lg-form-card cal-tp">
+          <p className="nt-editor-h">일정 유형 관리</p>
+          <p className="mn-hint">이름을 바꾸면 그 유형으로 등록된 일정에도 바로 반영돼요. 일정이 남아 있는 유형은 삭제할 수 없어요.</p>
+          {types.map((t, i) =>
+            typeDraft?.oldName === t.name ? (
+              <div key={t.name} className="cal-tp-row">{typeEditor()}</div>
+            ) : (
+              <div key={t.name} className="cal-tp-row">
+                <EventTypeTag type={t.name} color={t.color} />
+                <span className="cal-tp-cnt">{events !== null && `이번 화면 일정 ${typeCount(t.name)}개`}</span>
+                <button type="button" className="cal-tp-arrow" aria-label={`${t.name} 위로`} disabled={typeBusy || i === 0} onClick={() => moveType(i, -1)}>↑</button>
+                <button type="button" className="cal-tp-arrow" aria-label={`${t.name} 아래로`} disabled={typeBusy || i === types.length - 1} onClick={() => moveType(i, 1)}>↓</button>
+                <button type="button" className="lg-btn-ghost cal-tp-btn" disabled={typeBusy} onClick={() => setTypeDraft({ oldName: t.name, name: t.name, color: t.color })}>수정</button>
+                <button type="button" className="lg-btn-ghost cal-tp-btn nt-del" disabled={typeBusy} onClick={() => removeType(t)}>삭제</button>
+              </div>
+            ),
+          )}
+          {typeDraft?.oldName === null ? (
+            typeEditor()
+          ) : (
+            <div className="cal-tp-edit">
+              <button type="button" className="lg-btn-ghost cal-tp-btn" onClick={beginNewType} disabled={typeBusy || !!typeDraft}>+ 유형 추가</button>
+            </div>
+          )}
+          <div className="nt-editor-btns">
+            <button type="button" className="lg-btn-secondary" onClick={() => { setTypePanel(false); setTypeDraft(null); }}>
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="lg-card cal-card">
         <div className="cal-bar">
           <div className="cal-nav">
@@ -311,7 +474,12 @@ export function CalendarScreen({ initialDate }: { initialDate: string | null }) 
         </div>
 
         <div className="cal-legend">
-          {EVENT_TYPES.map((t) => <EventTypeTag key={t} type={t} />)}
+          {types.map((t) => <EventTypeTag key={t.name} type={t.name} color={t.color} />)}
+          {canWrite && fromDb && !typePanel && (
+            <button type="button" className="hm-more cal-type-manage" onClick={() => setTypePanel(true)}>
+              유형 관리
+            </button>
+          )}
         </div>
 
         <div className="cal-grid" role="grid" aria-label={`${year}년 ${month0 + 1}월`}>
@@ -332,7 +500,7 @@ export function CalendarScreen({ initialDate }: { initialDate: string | null }) 
               <button key={day} type="button" className={cls} onClick={() => clickDay(day)} role="gridcell" aria-selected={day === selected}>
                 <span className="cal-dnum">{Number(day.slice(8))}</span>
                 {dayEvents.slice(0, MAX_CHIPS).map((e) => (
-                  <span key={e.id} className={`cal-chip cal-t-${EVENT_TYPES.indexOf(e.event_type)}`} title={e.title}>
+                  <span key={e.id} className="cal-chip" style={typeStyle(colorOf(e.event_type))} title={e.title}>
                     {e.title}
                   </span>
                 ))}
@@ -371,7 +539,7 @@ export function CalendarScreen({ initialDate }: { initialDate: string | null }) 
           listRows.map((e) => (
             <article key={e.id} className="cal-item">
               <div className="cal-item-h">
-                <EventTypeTag type={e.event_type} />
+                <EventTypeTag type={e.event_type} color={colorOf(e.event_type)} />
                 <span className="cal-item-t">{e.title}</span>
                 <span className="nt-date">{fmtEventRange(e)}</span>
               </div>

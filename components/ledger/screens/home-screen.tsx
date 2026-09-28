@@ -9,8 +9,8 @@ import { ReactNode, useEffect, useState } from 'react';
 import type { GoFn } from '@/lib/ledger/roles';
 import { listNotices, fmtNoticeDate, isNewNotice, NoticeRow } from '@/lib/ledger/notices';
 import { listRecentManuals, countManualsByCategory, MANUAL_CATEGORIES } from '@/lib/ledger/manuals';
-import { listUpcomingEvents, fmtEventRange, dday, todayYmd, CalendarEvent } from '@/lib/ledger/calendar';
-import { EventTypeTag } from './calendar-screen';
+import { listUpcomingEvents, fmtEventRange, dday, todayYmd, typeColor, CalendarEvent } from '@/lib/ledger/calendar';
+import { EventTypeTag, useEventTypes } from './calendar-screen';
 
 function HomeBlock({ icon, title, sub, action, children }: {
   icon: string; title: string; sub: string; action?: ReactNode; children: ReactNode;
@@ -153,6 +153,7 @@ function CalendarBlock({ go }: { go: GoFn }) {
   const [rows, setRows] = useState<CalendarEvent[] | null>(null);
   const [err, setErr] = useState('');
   const today = todayYmd();
+  const { types } = useEventTypes();
 
   useEffect(() => {
     listUpcomingEvents(today, HOME_EVENT_COUNT)
@@ -186,7 +187,7 @@ function CalendarBlock({ go }: { go: GoFn }) {
                 className="hm-li"
                 onClick={() => go('calendar', { eventDate: e.event_date < today ? today : e.event_date })}
               >
-                <EventTypeTag type={e.event_type} />
+                <EventTypeTag type={e.event_type} color={typeColor(types, e.event_type)} />
                 <span className="hm-li-t">{e.title}</span>
                 <span className="hm-li-d">{fmtEventRange(e)}</span>
                 <span className="cal-dday">{dday(e, today)}</span>

@@ -158,11 +158,7 @@
 .nt-rich { margin-bottom: 12px; }
 
 /* ── 캘린더 (홈 칸 + 캘린더 화면) ─────────────────────────── */
-/* 유형 색: 0 입고(파랑) / 1 팝업(주황) / 2 정산마감(빨강) / 3 기타(회색) — EVENT_TYPES 순서 */
-.cal-t-0 { --cal-c: #2563eb; --cal-s: #eff6ff; }
-.cal-t-1 { --cal-c: #ea580c; --cal-s: #fff1e8; }
-.cal-t-2 { --cal-c: #dc2626; --cal-s: #fef2f2; }
-.cal-t-3 { --cal-c: #6b7280; --cal-s: #f3f4f6; }
+/* 유형 색은 calendar_event_types.color → 요소 style 의 --cal-c(진한 색) / --cal-s(옅은 배경) 로 들어옴 */
 .cal-tag { flex: 0 0 auto; display: inline-block; font-size: 0.66rem; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--cal-s); color: var(--cal-c); white-space: nowrap; }
 .cal-dday { flex: 0 0 auto; min-width: 44px; text-align: right; font-size: 0.72rem; font-weight: 600; color: var(--lg-ink); font-variant-numeric: tabular-nums; }
 
@@ -210,6 +206,22 @@
 .cal-type.on { background: var(--cal-c); color: #fff; }
 .cal-memo-in { resize: vertical; }
 .cal-err { margin: 4px 0 0; font-size: 0.76rem; color: var(--lg-rust); }
+
+/* 유형 관리 */
+.cal-type-manage { margin-left: auto; }
+.cal-tp { max-width: none !important; display: flex; flex-direction: column; gap: 4px; }
+.cal-tp-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--lg-line); }
+.cal-tp-row:last-of-type { border-bottom: 0; }
+.cal-tp-row .cal-tag { font-size: 0.78rem; padding: 2px 10px; }
+.cal-tp-cnt { font-size: 0.72rem; color: var(--lg-muted); margin-right: auto; }
+.cal-tp-btn { padding: 4px 10px !important; font-size: 0.76rem !important; }
+.cal-tp-arrow { width: 28px; height: 28px; border: 1px solid var(--lg-line); border-radius: 7px; background: var(--lg-bg); cursor: pointer; font-family: inherit; color: var(--lg-ink); }
+.cal-tp-arrow:disabled { opacity: 0.3; cursor: default; }
+.cal-tp-edit { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 0; }
+.cal-tp-name { width: 150px; }
+.cal-colors { display: flex; gap: 5px; flex-wrap: wrap; }
+.cal-color { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--lg-line); cursor: pointer; padding: 0; }
+.cal-color.on { box-shadow: 0 0 0 2px var(--lg-ink); }
 
 @media (max-width: 720px) {
   .cal-wrap { max-width: none; }
