@@ -3,7 +3,7 @@
 // 메인페이지(홈) — 로그인 직후 첫 화면 (2026-09-25 메인페이지 개편)
 // 4분할: 공지사항(좌상) / 운영매뉴얼(우상) / 캘린더(좌하) / 매출 요약(우하)
 // 조회는 전 역할, 작성은 본사·마스터만 (schema_patch_v0_36 RPC).
-// 연결 순서: Phase 2(공지 ✅) → 3(매뉴얼 ✅) → 4(캘린더 ✅) → 5(매출)
+// 연결 순서: Phase 2(공지 ✅) → 3(매뉴얼 ✅) → 4(캘린더 ✅) → 5(매출 ✅)
 
 import { ReactNode, useEffect, useState } from 'react';
 import type { GoFn } from '@/lib/ledger/roles';
@@ -11,6 +11,8 @@ import { listNotices, fmtNoticeDate, isNewNotice, NoticeRow } from '@/lib/ledger
 import { listRecentManuals, countManualsByCategory, MANUAL_CATEGORIES } from '@/lib/ledger/manuals';
 import { listUpcomingEvents, fmtEventRange, dday, todayYmd, typeColor, CalendarEvent } from '@/lib/ledger/calendar';
 import { EventTypeTag, useEventTypes } from './calendar-screen';
+import { listStoreSummaries, changeRate, won, SALES_DASHBOARD_URL, StoreSummary } from '@/lib/ledger/sales-summary';
+import { addDays, parseYmd } from '@/lib/ledger/calendar';
 
 function HomeBlock({ icon, title, sub, action, children }: {
   icon: string; title: string; sub: string; action?: ReactNode; children: ReactNode;
@@ -27,10 +29,6 @@ function HomeBlock({ icon, title, sub, action, children }: {
       <div className="hm-block-b">{children}</div>
     </section>
   );
-}
-
-function Soon({ text }: { text: string }) {
-  return <p className="hm-empty">{text}</p>;
 }
 
 const HOME_NOTICE_COUNT = 5;
@@ -200,15 +198,114 @@ function CalendarBlock({ go }: { go: GoFn }) {
   );
 }
 
+const SALES_REFRESH_MS = 10 * 60 * 1000; // 수집은 하루 1번(21시대)이라 10분이면 충분
+
+function fmtSalesDate(date: string, today: string) {
+  if (date === addDays(today, -1)) return '어제';
+  if (date === today) return '오늘';
+  const d = parseYmd(date);
+  return `${d.getMonth() + 1}.${d.getDate()} 기준`;
+}
+
+// 매장별 최근 수집일 매출 + 전일 대비. 매장을 누르면 기기별 금액 펼침
+function SalesBlock() {
+  const [rows, setRows] = useState<StoreSummary[] | null>(null);
+  const [err, setErr] = useState('');
+  const [open, setOpen] = useState<string | null>(null);
+  const today = todayYmd();
+
+  useEffect(() => {
+    const load = () =>
+      listStoreSummaries(today)
+        .then((r) => {
+          setRows(r);
+          setErr('');
+        })
+        .catch((e) => setErr((e as Error)?.message ?? String(e)));
+    load();
+    const t = window.setInterval(load, SALES_REFRESH_MS);
+    return () => window.clearInterval(t);
+  }, [today]);
+
+  const dates = rows ? Array.from(new Set(rows.filter((r) => r.date).map((r) => r.date))) : [];
+  const sameDay = rows !== null && dates.length === 1 && rows.every((r) => r.date);
+
+  return (
+    <HomeBlock
+      icon="📊"
+      title="매출 요약"
+      sub="매장별 전일 매출"
+      action={
+        <a className="hm-more" href={SALES_DASHBOARD_URL} target="_blank" rel="noreferrer">
+          대시보드 ›
+        </a>
+      }
+    >
+      {err ? (
+        <p className="hm-empty">매출을 불러오지 못했습니다. ({err})</p>
+      ) : rows === null ? (
+        <p className="hm-empty">불러오는 중…</p>
+      ) : (
+        <>
+          <ul className="hm-list">
+            {rows.map((r) => {
+              const rate = changeRate(r);
+              const isOpen = open === r.key;
+              return (
+                <li key={r.key}>
+                  <button
+                    type="button"
+                    className="hm-li sl-row"
+                    onClick={() => setOpen(isOpen ? null : r.key)}
+                    aria-expanded={isOpen}
+                    disabled={!r.date}
+                  >
+                    <span className="hm-li-t">{r.name}</span>
+                    {r.date ? (
+                      <>
+                        <span className="hm-li-d">{fmtSalesDate(r.date, today)}</span>
+                        <span className="sl-amt">{won(r.total)}</span>
+                        <span className={`sl-rate${rate === null ? '' : rate >= 0 ? ' up' : ' down'}`}>
+                          {rate === null ? '—' : `${rate >= 0 ? '▲' : '▼'} ${Math.abs(rate).toFixed(1)}%`}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="hm-li-d">최근 2주 매출 없음</span>
+                    )}
+                  </button>
+                  {isOpen && r.date && (
+                    <div className="sl-sites">
+                      {r.sites.map((x) => (
+                        <span key={x.name} className="sl-site">
+                          {x.name} <b>{won(x.amount)}</b>
+                        </span>
+                      ))}
+                      {r.prevTotal !== null && <span className="sl-site sl-prev">전일 {won(r.prevTotal)}</span>}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {sameDay && (
+            <p className="sl-total">
+              3개 매장 합계 <b>{won(rows.reduce((s, r) => s + r.total, 0))}</b>
+            </p>
+          )}
+          <p className="sl-note">자동수집 매장 기준 · 매일 밤 수집 후 반영 · 전일 대비는 바로 전날과 비교</p>
+        </>
+      )}
+    </HomeBlock>
+  );
+}
+
 export function HomeScreen({ go }: { go: GoFn }) {
   return (
     <div className="hm-grid">
       <NoticeBlock go={go} />
       <ManualBlock go={go} />
       <CalendarBlock go={go} />
-      <HomeBlock icon="📊" title="매출 요약" sub="매장별 전일 매출">
-        <Soon text="매장별 매출 요약이 곧 이곳에 표시됩니다." />
-      </HomeBlock>
+      <SalesBlock />
     </div>
   );
 }
