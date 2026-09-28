@@ -15,6 +15,7 @@ export type ScreenId =
   | 'home'
   | 'notices'
   | 'manuals'
+  | 'calendar'
   | 'board'
   | 'stock'
   | 'receipt'
@@ -35,6 +36,7 @@ export const SCREEN_NM: Record<ScreenId, string> = {
   home: '홈',
   notices: '공지사항',
   manuals: '운영매뉴얼',
+  calendar: '캘린더',
   board: '발주판',
   stock: '재고 현황',
   receipt: '입고검수',
@@ -62,12 +64,13 @@ export const ROLE_TABS: Record<Role, ScreenId[]> = {
   warehouse: ['queue', 'inbound', 'stock', 'guide'],
 };
 
-// 메뉴에 없지만 전 역할이 들어갈 수 있는 화면 (홈, 홈에서 여는 공지사항·운영매뉴얼)
-export const COMMON_SCREENS: ScreenId[] = ['home', 'notices', 'manuals'];
+// 메뉴에 없지만 전 역할이 들어갈 수 있는 화면 (홈, 홈에서 여는 공지사항·운영매뉴얼·캘린더)
+export const COMMON_SCREENS: ScreenId[] = ['home', 'notices', 'manuals', 'calendar'];
 
 // 화면 이동 함수 (shell 이 내려줌).
 // noticeId: 공지사항 화면에서 그 공지를 펼친 채로 / manualId·category: 운영매뉴얼 화면에서 그 문서·카테고리로
-export type GoOpts = { noticeId?: string; manualId?: string; category?: string };
+// eventDate: 캘린더 화면에서 그 날짜(YYYY-MM-DD)를 고른 채로
+export type GoOpts = { noticeId?: string; manualId?: string; category?: string; eventDate?: string };
 export type GoFn = (screen: ScreenId, opts?: GoOpts) => void;
 
 export const ROLES: Role[] = ['admin', 'hq', 'manager', 'warehouse'];

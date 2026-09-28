@@ -22,6 +22,7 @@ import { LoginScreen } from './screens/login-screen';
 import { HomeScreen } from './screens/home-screen';
 import { NoticesScreen } from './screens/notices-screen';
 import { ManualsScreen } from './screens/manuals-screen';
+import { CalendarScreen } from './screens/calendar-screen';
 
 function ScreenHost({ screen, go, opts }: { screen: ScreenId; go: GoFn; opts: GoOpts }) {
   switch (screen) {
@@ -31,6 +32,8 @@ function ScreenHost({ screen, go, opts }: { screen: ScreenId; go: GoFn; opts: Go
       return <NoticesScreen initialOpenId={opts.noticeId ?? null} />;
     case 'manuals':
       return <ManualsScreen initialOpenId={opts.manualId ?? null} initialCategory={opts.category ?? null} />;
+    case 'calendar':
+      return <CalendarScreen initialDate={opts.eventDate ?? null} />;
     case 'board':
       return <BoardScreen />;
     case 'stock':

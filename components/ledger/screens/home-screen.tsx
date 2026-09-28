@@ -3,12 +3,14 @@
 // 메인페이지(홈) — 로그인 직후 첫 화면 (2026-09-25 메인페이지 개편)
 // 4분할: 공지사항(좌상) / 운영매뉴얼(우상) / 캘린더(좌하) / 매출 요약(우하)
 // 조회는 전 역할, 작성은 본사·마스터만 (schema_patch_v0_36 RPC).
-// 연결 순서: Phase 2(공지 ✅) → 3(매뉴얼 ✅) → 4(캘린더) → 5(매출)
+// 연결 순서: Phase 2(공지 ✅) → 3(매뉴얼 ✅) → 4(캘린더 ✅) → 5(매출)
 
 import { ReactNode, useEffect, useState } from 'react';
 import type { GoFn } from '@/lib/ledger/roles';
 import { listNotices, fmtNoticeDate, isNewNotice, NoticeRow } from '@/lib/ledger/notices';
 import { listRecentManuals, countManualsByCategory, MANUAL_CATEGORIES } from '@/lib/ledger/manuals';
+import { listUpcomingEvents, fmtEventRange, dday, todayYmd, CalendarEvent } from '@/lib/ledger/calendar';
+import { EventTypeTag } from './calendar-screen';
 
 function HomeBlock({ icon, title, sub, action, children }: {
   icon: string; title: string; sub: string; action?: ReactNode; children: ReactNode;
@@ -144,14 +146,65 @@ function ManualBlock({ go }: { go: GoFn }) {
   );
 }
 
+const HOME_EVENT_COUNT = 5;
+
+// 오늘 진행 중이거나 다가오는 일정 — 클릭하면 캘린더에서 그 날짜가 열림
+function CalendarBlock({ go }: { go: GoFn }) {
+  const [rows, setRows] = useState<CalendarEvent[] | null>(null);
+  const [err, setErr] = useState('');
+  const today = todayYmd();
+
+  useEffect(() => {
+    listUpcomingEvents(today, HOME_EVENT_COUNT)
+      .then(setRows)
+      .catch((e) => setErr((e as Error)?.message ?? String(e)));
+  }, [today]);
+
+  return (
+    <HomeBlock
+      icon="📅"
+      title="캘린더"
+      sub="다가오는 일정"
+      action={
+        <button type="button" className="hm-more" onClick={() => go('calendar')}>
+          전체보기 ›
+        </button>
+      }
+    >
+      {err ? (
+        <p className="hm-empty">일정을 불러오지 못했습니다. ({err})</p>
+      ) : rows === null ? (
+        <p className="hm-empty">불러오는 중…</p>
+      ) : rows.length === 0 ? (
+        <p className="hm-empty">다가오는 일정이 없습니다.</p>
+      ) : (
+        <ul className="hm-list">
+          {rows.map((e) => (
+            <li key={e.id}>
+              <button
+                type="button"
+                className="hm-li"
+                onClick={() => go('calendar', { eventDate: e.event_date < today ? today : e.event_date })}
+              >
+                <EventTypeTag type={e.event_type} />
+                <span className="hm-li-t">{e.title}</span>
+                <span className="hm-li-d">{fmtEventRange(e)}</span>
+                <span className="cal-dday">{dday(e, today)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </HomeBlock>
+  );
+}
+
 export function HomeScreen({ go }: { go: GoFn }) {
   return (
     <div className="hm-grid">
       <NoticeBlock go={go} />
       <ManualBlock go={go} />
-      <HomeBlock icon="📅" title="캘린더" sub="입고·운영 일정">
-        <Soon text="입고·운영 일정이 곧 이곳에 표시됩니다." />
-      </HomeBlock>
+      <CalendarBlock go={go} />
       <HomeBlock icon="📊" title="매출 요약" sub="매장별 전일 매출">
         <Soon text="매장별 매출 요약이 곧 이곳에 표시됩니다." />
       </HomeBlock>
