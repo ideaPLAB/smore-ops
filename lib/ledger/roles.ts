@@ -67,6 +67,9 @@ export const ROLE_TABS: Record<Role, ScreenId[]> = {
 // 메뉴에 없지만 전 역할이 들어갈 수 있는 화면 (홈, 홈에서 여는 공지사항·운영매뉴얼·캘린더)
 export const COMMON_SCREENS: ScreenId[] = ['home', 'notices', 'manuals', 'calendar'];
 
+// 본사·마스터 — 매출 대시보드(/smore_report, 메뉴 없는 별도 페이지) 접근 가능 (2026-09-29 나츠)
+export const isHqRole = (r: Role) => r === 'admin' || r === 'hq';
+
 // 화면 이동 함수 (shell 이 내려줌).
 // noticeId: 공지사항 화면에서 그 공지를 펼친 채로 / manualId·category: 운영매뉴얼 화면에서 그 문서·카테고리로
 // eventDate: 캘린더 화면에서 그 날짜(YYYY-MM-DD)를 고른 채로

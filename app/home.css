@@ -247,3 +247,90 @@
 .sl-total b { color: var(--lg-ink); font-size: 0.92rem; font-variant-numeric: tabular-nums; }
 .sl-note { margin: 6px 0 0; font-size: 0.7rem; color: var(--lg-faint); }
 a.hm-more { text-decoration: none; }
+
+/* ── 매출 대시보드 (본사·마스터 숨김 화면) — components/ledger/screens/sales-dashboard-screen.tsx ── */
+/* 파워BI Weekly Report 배치: 왼쪽 오렌지 필터 패널 + KPI 5칸 + 2×2 + 맨 아래 상품 */
+.sd { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 18px; align-items: start; }
+.sd-side { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 8px; padding: 14px 12px; background: #f97316; border-radius: var(--lg-radius); }
+.sd-side-box { background: #fff; border-radius: var(--lg-radius-sm); padding: 8px 8px 10px; }
+.sd-side-l { font-size: 0.72rem; font-weight: 600; color: #fff; margin-top: 6px; }
+.sd-side-box .sd-side-l { color: var(--lg-ink); margin: 0 0 6px; }
+.sd-week { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.sd-week span { flex: 1; text-align: center; font-size: 0.8rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.sd-week small { display: block; font-size: 0.66rem; font-weight: 500; color: #ea580c; }
+.sd-week button { border: 0; background: var(--lg-line-soft); border-radius: 6px; padding: 4px 6px; font-size: 0.66rem; cursor: pointer; }
+.sd-week button:disabled { opacity: 0.35; cursor: default; }
+.sd-side-btn { border: 0; background: #fff; border-radius: var(--lg-radius-sm); padding: 10px 8px; font-family: inherit; font-size: 0.82rem; font-weight: 500; color: var(--lg-ink); cursor: pointer; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08); }
+.sd-side-btn.on { background: var(--lg-ink); color: #fff; }
+.sd-side-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.sd-side-note { margin: 8px 0 0; font-size: 0.68rem; line-height: 1.5; color: #fff7ed; font-variant-numeric: tabular-nums; }
+
+.sd-main { min-width: 0; }
+.sd-title { margin: 2px 0 14px; font-size: 1.1rem; font-weight: 700; text-align: center; }
+.sd-title span { margin-left: 6px; font-size: 0.85rem; font-weight: 500; color: var(--lg-muted); font-variant-numeric: tabular-nums; }
+.sd-loading { opacity: 0.5; transition: opacity 0.15s; }
+
+.sd-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.sd-kpi { background: var(--lg-bg); border: 1px solid var(--lg-line); border-radius: var(--lg-radius); padding: 14px 10px 12px; text-align: center; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04); }
+.sd-kv { font-size: 1.3rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sd-kl { margin-top: 4px; font-size: 0.8rem; color: var(--lg-ink); }
+.sd-ks { margin-top: 2px; font-size: 0.68rem; color: var(--lg-muted); }
+
+.sd-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.sd-card { min-width: 0; overflow-x: auto; }
+.sd-bottom { margin-top: 16px; }
+.sd-card-h { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.sd-card-t { font-size: 0.92rem; font-weight: 600; }
+.sd-card-sub { font-size: 0.72rem; color: var(--lg-muted); font-weight: 400; }
+.sd-card-r { margin-left: auto; }
+.sd-dim { color: var(--lg-muted); }
+.sd-pending { display: flex; align-items: center; justify-content: center; height: 250px; margin: 0; border: 1px dashed var(--lg-line); border-radius: var(--lg-radius-sm); font-size: 0.8rem; color: var(--lg-muted); text-align: center; padding: 0 16px; }
+
+.sd-seg { display: inline-flex; border: 1px solid var(--lg-line); border-radius: 999px; overflow: hidden; }
+.sd-seg button { border: 0; background: var(--lg-bg); padding: 7px 16px; font-family: inherit; font-size: 0.82rem; font-weight: 500; color: var(--lg-muted); cursor: pointer; }
+.sd-seg button.on { background: var(--lg-ink); color: #fff; }
+.sd-seg-sm button { padding: 4px 12px; font-size: 0.72rem; }
+
+/* 요일 × 시간대 히트맵 */
+.sd-heat-wrap { height: 250px; display: flex; flex-direction: column; justify-content: center; }
+.sd-heat { display: grid; gap: 3px; }
+.sd-heat-row { display: contents; }
+.sd-heat-x { font-size: 0.66rem; color: var(--lg-muted); text-align: center; }
+.sd-heat-y { font-size: 0.72rem; color: var(--lg-muted); display: flex; align-items: center; }
+.sd-heat-c { height: 22px; border-radius: 4px; background: var(--lg-line-soft); }
+.sd-heat-note { margin: 10px 0 0; font-size: 0.76rem; color: var(--lg-muted); }
+.sd-heat-note b { color: var(--lg-ink); }
+
+.sd-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.sd-table th, .sd-table td { white-space: nowrap; }
+.sd-table th { text-align: left; font-size: 0.72rem; font-weight: 500; color: var(--lg-muted); padding: 6px 6px; border-bottom: 1px solid var(--lg-line); }
+.sd-table td { padding: 7px 6px; border-bottom: 1px solid var(--lg-line-soft); }
+.sd-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.sd-name { max-width: 0; width: 45%; overflow: hidden; text-overflow: ellipsis; }
+.sd-top-bar-h { width: 36%; }
+.sd-top-bar { display: flex; align-items: center; gap: 8px; }
+.sd-top-track { flex: 1; height: 10px; background: var(--lg-line-soft); border-radius: 4px; overflow: hidden; }
+.sd-top-track span { display: block; height: 100%; border-radius: 0 4px 4px 0; }
+.sd-top-bar b { min-width: 96px; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 1100px) {
+  .sd-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 820px) {
+  .sd { grid-template-columns: 1fr; }
+  .sd-side { position: static; flex-direction: row; flex-wrap: wrap; }
+  .sd-grid { grid-template-columns: 1fr; }
+  .sd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ── /smore_report — 메뉴바 없는 매출 대시보드 페이지 (components/ledger/smore-report.tsx) ── */
+/* .ledger 토큰·폰트는 그대로 쓰고, 사이드바용 2단 그리드·폭 제한만 푼다 */
+.ledger.sr { display: block; max-width: none; background: var(--lg-surface); }
+.sr-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 16px; padding: 12px 28px; background: var(--lg-bg); border-bottom: 1px solid var(--lg-line); }
+.sr-back { padding: 6px 12px; border: 1px solid var(--lg-line); border-radius: 999px; font-size: 0.78rem; color: var(--lg-ink); text-decoration: none; }
+.sr-back:hover { background: var(--lg-line-soft); }
+.sr-logo { font-size: 1rem; font-weight: 800; letter-spacing: -0.01em; }
+.sr-logo b { color: #f97316; }
+.sr-user { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 0.8rem; font-weight: 600; }
+.sr-user button { padding: 5px 10px; font-size: 0.74rem; border: 1px solid var(--lg-line); border-radius: 7px; background: transparent; color: var(--lg-muted); cursor: pointer; font-family: inherit; }
+.sr-main { padding: 20px 28px 28px; }

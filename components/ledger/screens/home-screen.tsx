@@ -6,7 +6,9 @@
 // 연결 순서: Phase 2(공지 ✅) → 3(매뉴얼 ✅) → 4(캘린더 ✅) → 5(매출 ✅)
 
 import { ReactNode, useEffect, useState } from 'react';
-import type { GoFn } from '@/lib/ledger/roles';
+import Link from 'next/link';
+import { isHqRole, type GoFn } from '@/lib/ledger/roles';
+import { useRole } from '../role-context';
 import { listNotices, fmtNoticeDate, isNewNotice, NoticeRow } from '@/lib/ledger/notices';
 import { listRecentManuals, countManualsByCategory, MANUAL_CATEGORIES } from '@/lib/ledger/manuals';
 import { listUpcomingEvents, fmtEventRange, dday, todayYmd, typeColor, CalendarEvent } from '@/lib/ledger/calendar';
@@ -208,7 +210,10 @@ function fmtSalesDate(date: string, today: string) {
 }
 
 // 매장별 최근 수집일 매출 + 전일 대비. 매장을 누르면 기기별 금액 펼침
+// 본사·마스터 → /smore_report (메뉴바 없는 별도 페이지, 같은 탭 — 새 탭은 로그인 세션이 안 넘어감)
+// 그 외 역할 → smore-delta 외부 대시보드
 function SalesBlock() {
+  const { role } = useRole();
   const [rows, setRows] = useState<StoreSummary[] | null>(null);
   const [err, setErr] = useState('');
   const [open, setOpen] = useState<string | null>(null);
@@ -236,9 +241,15 @@ function SalesBlock() {
       title="매출 요약"
       sub="매장별 전일 매출"
       action={
-        <a className="hm-more" href={SALES_DASHBOARD_URL} target="_blank" rel="noreferrer">
-          대시보드 ›
-        </a>
+        isHqRole(role) ? (
+          <Link className="hm-more" href="/smore_report">
+            대시보드 ›
+          </Link>
+        ) : (
+          <a className="hm-more" href={SALES_DASHBOARD_URL} target="_blank" rel="noreferrer">
+            대시보드 ›
+          </a>
+        )
       }
     >
       {err ? (
