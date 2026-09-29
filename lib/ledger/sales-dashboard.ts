@@ -123,10 +123,10 @@ async function earliestAutoDate(table: string): Promise<string | null> {
   return (data?.[0] as { date: string } | undefined)?.date ?? null;
 }
 
-// pos_receipts 가 아직 없으면(테이블 생성 전) null — 영수증 기반 칸만 '준비 중'으로 표시
+// pos_receipts 를 못 읽으면(테이블 생성 전 · anon 권한 GRANT 전) null — 영수증 기반 칸만 '준비 중'으로 표시하고 나머지는 그대로
 function isMissingTable(e: unknown) {
   const code = (e as { code?: string })?.code;
-  return code === 'PGRST205' || code === '42P01';
+  return code === 'PGRST205' || code === '42P01' || code === '42501';
 }
 
 async function receiptRows(stores: string[], from: string, to: string): Promise<ReceiptRow[] | null> {
