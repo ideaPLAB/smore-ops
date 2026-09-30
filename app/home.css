@@ -264,7 +264,6 @@ a.hm-more { text-decoration: none; }
 .sd-side-btn.on { background: var(--lg-ink); color: #fff; }
 .sd-side-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .sd-side-group { display: contents; } /* PC: 그룹 없는 것처럼 기존 세로 배치 유지. 폰에서만 가로 한 줄 */
-.sd-side-note { margin: 8px 0 0; font-size: 0.68rem; line-height: 1.5; color: #fff7ed; font-variant-numeric: tabular-nums; }
 
 .sd-main { min-width: 0; }
 .sd-title { margin: 2px 0 14px; font-size: 1.1rem; font-weight: 700; text-align: center; }
@@ -354,8 +353,6 @@ a.hm-more { text-decoration: none; }
   .sd-side-group::-webkit-scrollbar { display: none; }
   .sd-side-group .sd-side-l { flex: none; width: 48px; margin: 0; }
   .sd-side-group .sd-side-btn { flex: none; padding: 7px 14px; border-radius: 999px; font-size: 0.8rem; white-space: nowrap; }
-  .sd-side-note { margin: 0; display: flex; gap: 10px; }
-  .sd-side-note br { display: none; }
 
   .sd-title { margin: 0 0 10px; font-size: 1rem; }
   .sd-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }

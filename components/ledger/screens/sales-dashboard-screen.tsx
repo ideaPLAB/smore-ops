@@ -511,13 +511,6 @@ export function SalesDashboardScreen() {
             </button>
           ))}
         </div>
-        <p className="sd-side-note">
-          <span>매출 ~{data?.cutoff ? md(data.cutoff) : '—'}</span>
-          <br />
-          <span>영수증 ~{rc?.coveredTo ? md(rc.coveredTo) : '—'}</span>
-          <br />
-          <span>상품 ~{data?.product.coveredTo ? md(data.product.coveredTo) : '—'}</span>
-        </p>
       </aside>
 
       <div className="sd-main">
