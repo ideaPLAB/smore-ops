@@ -22,7 +22,7 @@ function ReportGate() {
           +SMORE <b>REPORT</b>
         </span>
         <span className="sr-user">
-          {session.display_name || session.username}
+          <span className="sr-name">{session.display_name || session.username}</span>
           <button type="button" onClick={logout}>
             로그아웃
           </button>

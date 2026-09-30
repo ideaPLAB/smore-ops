@@ -24,6 +24,7 @@ import { parseYmd, todayYmd } from '@/lib/ledger/calendar';
 import { isHqRole } from '@/lib/ledger/roles';
 import {
   DashboardData,
+  DeviceRow,
   Period,
   StoreFilter,
   SUPPLY_TYPES,
@@ -90,16 +91,31 @@ const Pending = ({ what }: { what: string }) => <p className="sd-pending">{what}
 
 // ── 차트 ─────────────────────────────────────────────────────────────
 
-function StoreChart({ data }: { data: DashboardData }) {
+// 폰 폭(640px 이하)에서만 차트·표를 모바일용으로 바꾼다. PC 화면은 그대로
+const MOBILE_Q = '(max-width: 640px)';
+function useCompact() {
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_Q);
+    const on = () => setCompact(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  return compact;
+}
+const chartH = (compact: boolean) => (compact ? 210 : 250);
+
+function StoreChart({ data, compact }: { data: DashboardData; compact: boolean }) {
   const rows = data.stores.map((s) => ({ name: SHORT[s.key] ?? s.name, total: s.total, customers: s.customers }));
   const hasCust = data.stores.some((s) => s.customers !== null);
   return (
-    <ResponsiveContainer width="100%" height={250}>
-      <ComposedChart data={rows} margin={{ top: 24, right: 8, left: 0, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height={chartH(compact)}>
+      <ComposedChart data={rows} margin={{ top: 24, right: compact ? 4 : 8, left: 0, bottom: 0 }}>
         <CartesianGrid vertical={false} stroke="#f0f0f0" />
-        <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={12} />
+        <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={compact ? 11 : 12} />
         <YAxis yAxisId="l" tickFormatter={short} tickLine={false} axisLine={false} fontSize={11} width={52} />
-        {hasCust && <YAxis yAxisId="r" orientation="right" tickLine={false} axisLine={false} fontSize={11} width={40} />}
+        {hasCust && <YAxis yAxisId="r" orientation="right" tickLine={false} axisLine={false} fontSize={11} width={40} hide={compact} />}
         <Tooltip formatter={(v, n) => (n === '고객수' ? `${num(Number(v))}명` : tipWon(v))} />
         <Legend verticalAlign="bottom" iconSize={10} wrapperStyle={{ fontSize: 12 }} />
         <Bar isAnimationActive={false} yAxisId="l" dataKey="total" name="총매출액" fill={C_BAR} radius={[4, 4, 0, 0]} maxBarSize={80}>
@@ -111,21 +127,22 @@ function StoreChart({ data }: { data: DashboardData }) {
   );
 }
 
-function DailyChart({ data }: { data: DashboardData }) {
-  const rows = data.days.map((d) => ({ ...d, label: mdw(d.date) }));
+function DailyChart({ data, compact }: { data: DashboardData; compact: boolean }) {
+  // 폰: x축은 요일만, 막대 위 숫자는 빼고(겹침) 눌러서 툴팁으로 확인
+  const rows = data.days.map((d) => ({ ...d, label: compact ? WD[parseYmd(d.date).getDay()] : mdw(d.date) }));
   const hasCust = data.days.some((d) => d.customers !== null);
   const hasPrev = data.days.some((d) => d.prevTotal !== null);
   return (
-    <ResponsiveContainer width="100%" height={250}>
-      <ComposedChart data={rows} margin={{ top: 24, right: 8, left: 0, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height={chartH(compact)}>
+      <ComposedChart data={rows} margin={{ top: compact ? 12 : 24, right: compact ? 4 : 8, left: 0, bottom: 0 }}>
         <CartesianGrid vertical={false} stroke="#f0f0f0" />
         <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} />
         <YAxis yAxisId="l" tickFormatter={short} tickLine={false} axisLine={false} fontSize={11} width={52} />
-        {hasCust && <YAxis yAxisId="r" orientation="right" tickLine={false} axisLine={false} fontSize={11} width={40} />}
+        {hasCust && <YAxis yAxisId="r" orientation="right" tickLine={false} axisLine={false} fontSize={11} width={40} hide={compact} />}
         <Tooltip formatter={(v, n) => (n === '고객수' ? `${num(Number(v))}명` : tipWon(v))} />
         <Legend verticalAlign="bottom" iconSize={10} wrapperStyle={{ fontSize: 12 }} />
         <Bar isAnimationActive={false} yAxisId="l" dataKey="total" name="총매출액" fill={C_BAR2} radius={[4, 4, 0, 0]} maxBarSize={48}>
-          <LabelList dataKey="total" position="top" formatter={(v: unknown) => (v == null ? '' : short(Number(v)))} fontSize={11} />
+          {!compact && <LabelList dataKey="total" position="top" formatter={(v: unknown) => (v == null ? '' : short(Number(v)))} fontSize={11} />}
         </Bar>
         {hasPrev && (
           <Line isAnimationActive={false} yAxisId="l" dataKey="prevTotal" name="전주 매출" stroke={C_PREV} strokeDasharray="5 4" strokeWidth={2} dot={false} connectNulls />
@@ -136,12 +153,12 @@ function DailyChart({ data }: { data: DashboardData }) {
   );
 }
 
-function SupplyDonut({ data, picked }: { data: DashboardData; picked: string[] }) {
+function SupplyDonut({ data, picked, compact }: { data: DashboardData; picked: string[]; compact: boolean }) {
   const rows = data.product.supply;
   const total = data.product.total;
   if (!rows.length) return <p className="sd-pending">이 주의 상품별 판매 데이터가 아직 올라오지 않았어요</p>;
   return (
-    <ResponsiveContainer width="100%" height={250}>
+    <ResponsiveContainer width="100%" height={chartH(compact)}>
       <PieChart>
         <Pie
           data={rows}
@@ -165,16 +182,17 @@ function SupplyDonut({ data, picked }: { data: DashboardData; picked: string[] }
   );
 }
 
-function HourChart({ data }: { data: NonNullable<DashboardData['receipts']> }) {
+function HourChart({ data, compact }: { data: NonNullable<DashboardData['receipts']>; compact: boolean }) {
+  // 폰: 시간 라벨은 2시간 간격, 오른쪽 고객수 축은 숨김(툴팁으로 확인)
   const rows = data.hours.map((h) => ({ ...h, label: `${h.hour}시` }));
   const hasPrev = data.hours.some((h) => h.prevNet !== null);
   return (
-    <ResponsiveContainer width="100%" height={250}>
-      <ComposedChart data={rows} margin={{ top: 24, right: 8, left: 0, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height={chartH(compact)}>
+      <ComposedChart data={rows} margin={{ top: compact ? 12 : 24, right: compact ? 4 : 8, left: 0, bottom: 0 }}>
         <CartesianGrid vertical={false} stroke="#f0f0f0" />
-        <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} interval={0} />
+        <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} interval={compact ? 1 : 0} />
         <YAxis yAxisId="l" tickFormatter={short} tickLine={false} axisLine={false} fontSize={11} width={52} />
-        <YAxis yAxisId="r" orientation="right" tickLine={false} axisLine={false} fontSize={11} width={40} />
+        <YAxis yAxisId="r" orientation="right" tickLine={false} axisLine={false} fontSize={11} width={40} hide={compact} />
         <Tooltip formatter={(v, n) => (n === '고객수' ? `${num(Number(v))}명` : tipWon(v))} />
         <Legend verticalAlign="bottom" iconSize={10} wrapperStyle={{ fontSize: 12 }} />
         <Bar isAnimationActive={false} yAxisId="l" dataKey="net" name="실매출액" fill={C_BAR} radius={[3, 3, 0, 0]} />
@@ -226,10 +244,33 @@ function HourHeatmap({ data }: { data: NonNullable<DashboardData['receipts']> })
   );
 }
 
-function TopProducts({ data, picked }: { data: DashboardData; picked: string[] }) {
+function TopProducts({ data, picked, compact }: { data: DashboardData; picked: string[]; compact: boolean }) {
   const list = data.product.ranks.filter((p) => !picked.length || picked.includes(p.supplyType)).slice(0, 10);
   if (!list.length) return <p className="sd-pending">이 주의 상품별 판매 데이터가 아직 올라오지 않았어요</p>;
   const max = Math.max(1, ...list.map((p) => p.amount));
+  if (compact)
+    // 폰: 한 상품 = 순위 · 상품명(2줄까지) · 금액, 아래에 구분·수량과 막대
+    return (
+      <ol className="sd-top-m">
+        {list.map((p, i) => (
+          <li key={`${p.sku}-${i}`}>
+            <span className="sd-m-rank">{i + 1}</span>
+            <div className="sd-m-body">
+              <div className="sd-m-line">
+                <span className="sd-m-name">{p.name}</span>
+                <b>{won(p.amount)}</b>
+              </div>
+              <div className="sd-m-meta">
+                {p.supplyType} · {num(p.qty)}개
+              </div>
+              <span className="sd-m-track">
+                <span style={{ width: `${(p.amount / max) * 100}%`, background: SUPPLY_COLORS[p.supplyType] ?? C_BAR }} />
+              </span>
+            </div>
+          </li>
+        ))}
+      </ol>
+    );
   return (
     <table className="sd-table sd-top">
       <thead>
@@ -267,16 +308,17 @@ function TopProducts({ data, picked }: { data: DashboardData; picked: string[] }
 const STORE_COLORS: Record<string, string> = { samcheong: '#f97316', toyhouse: '#fbbf24', commons: '#c2410c' };
 const C_POS = '#e5e5e5';
 
-function DeviceShare({ data }: { data: DashboardData }) {
+function DeviceShare({ data, compact }: { data: DashboardData; compact: boolean }) {
   const device = data.total - data.posTotal;
   const pct = data.total ? (device / data.total) * 100 : 0;
   const rows = [
     { name: '기기', amount: device },
     { name: 'POS', amount: data.posTotal },
   ];
+  const h = compact ? 170 : 200;
   return (
     <div className="sd-dev-donut">
-      <ResponsiveContainer width="100%" height={200}>
+      <ResponsiveContainer width="100%" height={h}>
         <PieChart>
           <Pie data={rows} dataKey="amount" nameKey="name" innerRadius="64%" outerRadius="90%" startAngle={90} endAngle={-270} stroke="none" isAnimationActive={false}>
             <Cell fill={C_BAR} />
@@ -285,7 +327,7 @@ function DeviceShare({ data }: { data: DashboardData }) {
           <Tooltip formatter={tipWon} />
         </PieChart>
       </ResponsiveContainer>
-      <div className="sd-dev-center">
+      <div className="sd-dev-center" style={{ top: h / 2 }}>
         <b>{pct.toFixed(1)}%</b>
         <span>기기 비중</span>
       </div>
@@ -298,51 +340,85 @@ function DeviceShare({ data }: { data: DashboardData }) {
   );
 }
 
-function DeviceBars({ data }: { data: DashboardData }) {
+function Diff({ d }: { d: DeviceRow }) {
+  const diff = d.prevTotal ? ((d.total - d.prevTotal) / d.prevTotal) * 100 : null;
+  return (
+    <span className={diff === null ? 'sd-dim' : diff >= 0 ? 'sd-up' : 'sd-down'}>
+      {diff === null ? '—' : `${diff >= 0 ? '▲' : '▼'}${Math.abs(Math.round(diff))}%`}
+    </span>
+  );
+}
+
+function DeviceFill({ d, max }: { d: DeviceRow; max: number }) {
+  return (
+    <span className="sd-dev-fill" style={{ width: `${Math.max(0, (d.total / max) * 100)}%` }}>
+      {d.byStore.map((b) => (
+        <span
+          key={b.key}
+          style={{ width: `${d.total ? (b.amount / d.total) * 100 : 0}%`, background: STORE_COLORS[b.key] ?? C_BAR }}
+          title={`${SHORT[b.key] ?? b.key} ${won(b.amount)}`}
+        />
+      ))}
+    </span>
+  );
+}
+
+function DeviceBars({ data, compact }: { data: DashboardData; compact: boolean }) {
   const list = data.devices;
   if (!list.length) return <p className="sd-pending">이 주에는 기기 매출이 없어요</p>;
   const max = Math.max(1, ...list.map((d) => d.total));
   const shown = new Set(list.flatMap((d) => d.byStore.map((b) => b.key)));
+  const share = (d: DeviceRow) => (data.total ? `${((d.total / data.total) * 100).toFixed(1)}%` : '—');
   return (
     <div className="sd-dev-bars">
-      <table className="sd-table">
-        <thead>
-          <tr>
-            <th>기기</th>
-            <th className="sd-top-bar-h">매출액</th>
-            <th className="num">총매출 중</th>
-            <th className="num">전주 대비</th>
-          </tr>
-        </thead>
-        <tbody>
-          {list.map((d) => {
-            const diff = d.prevTotal ? ((d.total - d.prevTotal) / d.prevTotal) * 100 : null;
-            return (
+      {compact ? (
+        // 폰: 한 기기 = 윗줄(이름·비중 / 금액·전주 대비) + 아랫줄 가로로 꽉 찬 막대
+        <ul className="sd-dev-m">
+          {list.map((d) => (
+            <li key={d.name}>
+              <div className="sd-m-line">
+                <span>
+                  {d.name} <small className="sd-dim">{share(d)}</small>
+                </span>
+                <span>
+                  <b>{won(d.total)}</b> <Diff d={d} />
+                </span>
+              </div>
+              <span className="sd-top-track sd-dev-track">
+                <DeviceFill d={d} max={max} />
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <table className="sd-table">
+          <thead>
+            <tr>
+              <th>기기</th>
+              <th className="sd-top-bar-h">매출액</th>
+              <th className="num">총매출 중</th>
+              <th className="num">전주 대비</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((d) => (
               <tr key={d.name}>
                 <td>{d.name}</td>
                 <td className="sd-top-bar">
                   <span className="sd-top-track sd-dev-track">
-                    <span className="sd-dev-fill" style={{ width: `${Math.max(0, (d.total / max) * 100)}%` }}>
-                      {d.byStore.map((b) => (
-                        <span
-                          key={b.key}
-                          style={{ width: `${d.total ? (b.amount / d.total) * 100 : 0}%`, background: STORE_COLORS[b.key] ?? C_BAR }}
-                          title={`${SHORT[b.key] ?? b.key} ${won(b.amount)}`}
-                        />
-                      ))}
-                    </span>
+                    <DeviceFill d={d} max={max} />
                   </span>
                   <b>{won(d.total)}</b>
                 </td>
-                <td className="num sd-dim">{data.total ? `${((d.total / data.total) * 100).toFixed(1)}%` : '—'}</td>
-                <td className={`num ${diff === null ? 'sd-dim' : diff >= 0 ? 'sd-up' : 'sd-down'}`}>
-                  {diff === null ? '—' : `${diff >= 0 ? '▲' : '▼'}${Math.abs(Math.round(diff))}%`}
+                <td className="num sd-dim">{share(d)}</td>
+                <td className="num">
+                  <Diff d={d} />
                 </td>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            ))}
+          </tbody>
+        </table>
+      )}
       <div className="sd-dev-legend">
         {SALES_STORES.filter((s) => shown.has(s.key)).map((s) => (
           <span key={s.key}>
@@ -364,6 +440,7 @@ export function SalesDashboardScreen() {
   const [store, setStore] = useState<StoreFilter>('all');
   const [picked, setPicked] = useState<string[]>([]); // 공급구분 (비어 있으면 전체)
   const [hourView, setHourView] = useState<'bar' | 'heat'>('bar');
+  const compact = useCompact();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -412,29 +489,34 @@ export function SalesDashboardScreen() {
             </button>
           </div>
         </div>
-        <div className="sd-side-l">공급구분</div>
-        {SUPPLY_TYPES.map((t) => (
-          <button key={t} type="button" className={`sd-side-btn${picked.includes(t) ? ' on' : ''}`} onClick={() => togglePick(t)}>
-            {t}
-          </button>
-        ))}
-        <div className="sd-side-l">매장</div>
-        {[{ key: 'all', label: '전체' }, ...SALES_STORES.map((s) => ({ key: s.key, label: SHORT[s.key] ?? s.name }))].map((s) => (
-          <button
-            key={s.key}
-            type="button"
-            className={`sd-side-btn${store === s.key ? ' on' : ''}`}
-            onClick={() => setStore(s.key as StoreFilter)}
-          >
-            {s.label}
-          </button>
-        ))}
+        {/* sd-side-group: PC에선 display:contents(기존 세로 배치 그대로), 폰에선 가로로 밀어보는 한 줄 */}
+        <div className="sd-side-group">
+          <div className="sd-side-l">공급구분</div>
+          {SUPPLY_TYPES.map((t) => (
+            <button key={t} type="button" className={`sd-side-btn${picked.includes(t) ? ' on' : ''}`} onClick={() => togglePick(t)}>
+              {t}
+            </button>
+          ))}
+        </div>
+        <div className="sd-side-group">
+          <div className="sd-side-l">매장</div>
+          {[{ key: 'all', label: '전체' }, ...SALES_STORES.map((s) => ({ key: s.key, label: SHORT[s.key] ?? s.name }))].map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              className={`sd-side-btn${store === s.key ? ' on' : ''}`}
+              onClick={() => setStore(s.key as StoreFilter)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
         <p className="sd-side-note">
-          매출 ~{data?.cutoff ? md(data.cutoff) : '—'}
+          <span>매출 ~{data?.cutoff ? md(data.cutoff) : '—'}</span>
           <br />
-          영수증 ~{rc?.coveredTo ? md(rc.coveredTo) : '—'}
+          <span>영수증 ~{rc?.coveredTo ? md(rc.coveredTo) : '—'}</span>
           <br />
-          상품 ~{data?.product.coveredTo ? md(data.product.coveredTo) : '—'}
+          <span>상품 ~{data?.product.coveredTo ? md(data.product.coveredTo) : '—'}</span>
         </p>
       </aside>
 
@@ -464,13 +546,13 @@ export function SalesDashboardScreen() {
 
             <div className="sd-grid">
               <Card title="매장별 매출 · 고객수" sub={rcReady ? undefined : '고객수는 영수증 저장 후'}>
-                <StoreChart data={data} />
+                <StoreChart data={data} compact={compact} />
               </Card>
               <Card title="일별 매출 · 고객수" sub="회색 점선 = 전주 같은 요일">
-                <DailyChart data={data} />
+                <DailyChart data={data} compact={compact} />
               </Card>
               <Card title="공급구분 비중" sub={data.product.coveredTo ? `상품 데이터 ~${md(data.product.coveredTo)}` : undefined}>
-                <SupplyDonut data={data} picked={picked} />
+                <SupplyDonut data={data} picked={picked} compact={compact} />
               </Card>
               <Card
                 title="시간대별 실매출 · 고객수"
@@ -486,14 +568,14 @@ export function SalesDashboardScreen() {
                   </span>
                 }
               >
-                {!rcReady ? <Pending what="시간대별" /> : hourView === 'bar' ? <HourChart data={rc!} /> : <HourHeatmap data={rc!} />}
+                {!rcReady ? <Pending what="시간대별" /> : hourView === 'bar' ? <HourChart data={rc!} compact={compact} /> : <HourHeatmap data={rc!} />}
               </Card>
             </div>
 
             <Card title="기기 매출" sub="오락킹·사진기 등 · 막대 색 = 매장 · 전주 대비는 같은 기간 기준" className="sd-bottom">
               <div className="sd-dev">
-                <DeviceShare data={data} />
-                <DeviceBars data={data} />
+                <DeviceShare data={data} compact={compact} />
+                <DeviceBars data={data} compact={compact} />
               </div>
             </Card>
 
@@ -502,7 +584,7 @@ export function SalesDashboardScreen() {
               sub={`${picked.length ? picked.join('·') : '전체 공급구분'}${data.product.coveredTo ? ` · 상품 데이터 ~${md(data.product.coveredTo)}` : ''}`}
               className="sd-bottom"
             >
-              <TopProducts data={data} picked={picked} />
+              <TopProducts data={data} picked={picked} compact={compact} />
             </Card>
 
             <p className="sl-note">
