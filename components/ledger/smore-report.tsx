@@ -16,7 +16,7 @@ function ReportGate() {
     <div className="ledger sr">
       <header className="sr-top">
         <Link href="/" className="sr-back">
-          ← OPS로
+          ← OPS
         </Link>
         <span className="sr-logo">
           +SMORE <b>REPORT</b>
