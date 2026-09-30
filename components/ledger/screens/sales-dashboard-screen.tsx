@@ -263,6 +263,98 @@ function TopProducts({ data, picked }: { data: DashboardData; picked: string[] }
   );
 }
 
+// 기기 매출 — 왼쪽 POS vs 기기 도넛(가운데 기기 비중), 오른쪽 기기별 가로막대(매장별 색 누적 + 전주 대비)
+const STORE_COLORS: Record<string, string> = { samcheong: '#f97316', toyhouse: '#fbbf24', commons: '#c2410c' };
+const C_POS = '#e5e5e5';
+
+function DeviceShare({ data }: { data: DashboardData }) {
+  const device = data.total - data.posTotal;
+  const pct = data.total ? (device / data.total) * 100 : 0;
+  const rows = [
+    { name: '기기', amount: device },
+    { name: 'POS', amount: data.posTotal },
+  ];
+  return (
+    <div className="sd-dev-donut">
+      <ResponsiveContainer width="100%" height={200}>
+        <PieChart>
+          <Pie data={rows} dataKey="amount" nameKey="name" innerRadius="64%" outerRadius="90%" startAngle={90} endAngle={-270} stroke="none" isAnimationActive={false}>
+            <Cell fill={C_BAR} />
+            <Cell fill={C_POS} />
+          </Pie>
+          <Tooltip formatter={tipWon} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="sd-dev-center">
+        <b>{pct.toFixed(1)}%</b>
+        <span>기기 비중</span>
+      </div>
+      <p className="sd-dev-sum">
+        기기 <b>{won(device)}</b>
+        <br />
+        POS <span>{won(data.posTotal)}</span>
+      </p>
+    </div>
+  );
+}
+
+function DeviceBars({ data }: { data: DashboardData }) {
+  const list = data.devices;
+  if (!list.length) return <p className="sd-pending">이 주에는 기기 매출이 없어요</p>;
+  const max = Math.max(1, ...list.map((d) => d.total));
+  const shown = new Set(list.flatMap((d) => d.byStore.map((b) => b.key)));
+  return (
+    <div className="sd-dev-bars">
+      <table className="sd-table">
+        <thead>
+          <tr>
+            <th>기기</th>
+            <th className="sd-top-bar-h">매출액</th>
+            <th className="num">총매출 중</th>
+            <th className="num">전주 대비</th>
+          </tr>
+        </thead>
+        <tbody>
+          {list.map((d) => {
+            const diff = d.prevTotal ? ((d.total - d.prevTotal) / d.prevTotal) * 100 : null;
+            return (
+              <tr key={d.name}>
+                <td>{d.name}</td>
+                <td className="sd-top-bar">
+                  <span className="sd-top-track sd-dev-track">
+                    <span className="sd-dev-fill" style={{ width: `${Math.max(0, (d.total / max) * 100)}%` }}>
+                      {d.byStore.map((b) => (
+                        <span
+                          key={b.key}
+                          style={{ width: `${d.total ? (b.amount / d.total) * 100 : 0}%`, background: STORE_COLORS[b.key] ?? C_BAR }}
+                          title={`${SHORT[b.key] ?? b.key} ${won(b.amount)}`}
+                        />
+                      ))}
+                    </span>
+                  </span>
+                  <b>{won(d.total)}</b>
+                </td>
+                <td className="num sd-dim">{data.total ? `${((d.total / data.total) * 100).toFixed(1)}%` : '—'}</td>
+                <td className={`num ${diff === null ? 'sd-dim' : diff >= 0 ? 'sd-up' : 'sd-down'}`}>
+                  {diff === null ? '—' : `${diff >= 0 ? '▲' : '▼'}${Math.abs(Math.round(diff))}%`}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <div className="sd-dev-legend">
+        {SALES_STORES.filter((s) => shown.has(s.key)).map((s) => (
+          <span key={s.key}>
+            <i style={{ background: STORE_COLORS[s.key] }} />
+            {SHORT[s.key] ?? s.name}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── 화면 ─────────────────────────────────────────────────────────────
 
 export function SalesDashboardScreen() {
@@ -397,6 +489,13 @@ export function SalesDashboardScreen() {
                 {!rcReady ? <Pending what="시간대별" /> : hourView === 'bar' ? <HourChart data={rc!} /> : <HourHeatmap data={rc!} />}
               </Card>
             </div>
+
+            <Card title="기기 매출" sub="오락킹·사진기 등 · 막대 색 = 매장 · 전주 대비는 같은 기간 기준" className="sd-bottom">
+              <div className="sd-dev">
+                <DeviceShare data={data} />
+                <DeviceBars data={data} />
+              </div>
+            </Card>
 
             <Card
               title="상품 TOP 10 — 매출 순"

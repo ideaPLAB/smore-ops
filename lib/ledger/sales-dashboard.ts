@@ -257,10 +257,22 @@ export interface ProductRank {
   amount: number;
 }
 
+// 기기 매출 = 자동수집 테이블에서 site_name 이 POS 가 아닌 행 (오락킹·AI사진기·네컷·키리코리·신문사진기 등). 토스는 POS 행에 병합돼 있어 POS 쪽
+export const POS_SITE = 'POS';
+
+export interface DeviceRow {
+  name: string;
+  total: number;
+  prevTotal: number; // 전주 같은 기간 (이번 주 기준일까지와 같은 요일 수)
+  byStore: { key: StoreKey; amount: number }[];
+}
+
 export interface DashboardData {
   period: Period;
   cutoff: string | null; // 이번 주 자동수집 마지막 날
   total: number;
+  posTotal: number; // 총 매출액 중 POS(+토스)분 — 나머지가 기기
+  devices: DeviceRow[]; // 이번 주 매출 큰 순
   // 달성률용: 전주 비교 가능한 매장만 합산
   cmpTotal: number;
   cmpPrevTotal: number;
@@ -335,18 +347,30 @@ export async function loadSalesDashboard(period: Period, filter: StoreFilter, to
   // 자동수집: 매장별·일별
   const dayMap = new Map<string, number>();
   const prevDayMap = new Map<string, number>(); // 키 = 이번 주 같은 요일 날짜
+  const deviceMap = new Map<string, { total: number; prevTotal: number; byStore: Map<StoreKey, number> }>();
+  let posSiteTotal = 0;
   const storeRows: StoreRow[] = perStore.map(({ store, rows, since }) => {
     let total = 0;
     let prevTotal = 0;
     for (const r of rows) {
       const t = rowTotal(r);
+      const isDevice = r.site_name !== POS_SITE;
+      const dev = isDevice ? deviceMap.get(r.site_name) ?? { total: 0, prevTotal: 0, byStore: new Map<StoreKey, number>() } : null;
+      if (dev) deviceMap.set(r.site_name, dev);
       if (inCur(r.date)) {
         total += t;
         dayMap.set(r.date, (dayMap.get(r.date) ?? 0) + t);
+        if (dev) {
+          dev.total += t;
+          dev.byStore.set(store.key, (dev.byStore.get(store.key) ?? 0) + t);
+        } else posSiteTotal += t;
       } else if (inPrevWeek(r.date)) {
         const same = addDays(r.date, 7);
         prevDayMap.set(same, (prevDayMap.get(same) ?? 0) + t);
-        if (inPrevSpan(r.date)) prevTotal += t;
+        if (inPrevSpan(r.date)) {
+          prevTotal += t;
+          if (dev) dev.prevTotal += t;
+        }
       }
     }
     const comparable = cutoff !== null && since !== null && since <= prev.start;
@@ -404,6 +428,16 @@ export async function loadSalesDashboard(period: Period, filter: StoreFilter, to
     period,
     cutoff,
     total: storeRows.reduce((s, r) => s + r.total, 0),
+    posTotal: posSiteTotal,
+    devices: Array.from(deviceMap.entries())
+      .map(([name, d]) => ({
+        name,
+        total: d.total,
+        prevTotal: d.prevTotal,
+        byStore: stores.map((s) => ({ key: s.key, amount: d.byStore.get(s.key) ?? 0 })).filter((b) => b.amount !== 0),
+      }))
+      .filter((d) => d.total !== 0 || d.prevTotal !== 0)
+      .sort((a, b) => b.total - a.total || b.prevTotal - a.prevTotal),
     cmpTotal: storeRows.filter((r) => r.comparable).reduce((s, r) => s + r.total, 0),
     cmpPrevTotal: storeRows.filter((r) => r.comparable).reduce((s, r) => s + r.prevTotal, 0),
     stores: storeRows,
