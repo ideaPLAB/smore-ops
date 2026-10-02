@@ -610,6 +610,7 @@ export interface SelfuseEntry {
   product_name: string;
   sku: string;
   barcode: string | null;
+  vendor_name: string | null;
   qty: number;
   reason: string | null;
   remark: string | null;
@@ -619,7 +620,7 @@ export interface SelfuseEntry {
 export async function getSelfuseEntries(locationId?: string): Promise<SelfuseEntry[]> {
   let q = client()
     .from('self_use_entries')
-    .select('id,location_id,entry_date,product_id,qty,reason,remark,deducted,product:products(name,sku,barcode)')
+    .select('id,location_id,entry_date,product_id,qty,reason,remark,deducted,product:products(name,sku,barcode,vendor_name)')
     .order('entry_date', { ascending: false });
   if (locationId) q = q.eq('location_id', locationId);
   const { data, error } = await q;
@@ -633,6 +634,7 @@ export async function getSelfuseEntries(locationId?: string): Promise<SelfuseEnt
     product_name: e.product?.name ?? '—',
     sku: e.product?.sku ?? '',
     barcode: e.product?.barcode ?? null,
+    vendor_name: e.product?.vendor_name ?? null,
     qty: e.qty,
     reason: e.reason,
     remark: e.remark,

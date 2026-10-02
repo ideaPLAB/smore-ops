@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { getSelfuseEntries, saveSelfuseReason, saveSelfuseReasonBulk, getLocations } from '@/lib/ledger/queries';
 import type { SelfuseEntry } from '@/lib/ledger/queries';
 import type { LocationRow } from '@/lib/ledger/types';
-import { downloadCsv } from '@/lib/ledger/csv';
+import * as XLSX from 'xlsx';
+import { ecountVendor, ECOUNT_SELFUSE_WAREHOUSE } from '@/lib/ledger/ecount-vendors';
 import { useRole } from '../role-context';
 
 const REASONS = ['시연·촬영', '직원 복지', '매장 비치', '파손 처리', '행사 증정', '기타'];
@@ -164,18 +165,37 @@ export function SelfuseScreen() {
     }
   }
 
+  // 이카운트 자가사용 웹자료올리기 양식 그대로 — 사유 입력 끝난(차감 완료) 건만, 처리사유는 사용유형 칸에
   function handleDownload() {
-    const headers = ['일자', '품목코드', '품목명', '수량', '처리사유', '적요', '상태'];
-    const rows = entries.map((e) => [
-      e.entry_date,
-      e.sku,
-      e.product_name,
-      e.qty,
-      e.reason ?? '',
-      e.remark ?? '',
-      e.deducted ? '차감 완료' : '입력 필요',
-    ]);
-    downloadCsv('자가사용.csv', headers, rows);
+    const headers = ['일자', '순번', '거래처코드', '거래처명', '출하창고', '담당자', '참조', '품목코드', '품목명', '규격', '수량', '사용유형', '적요'];
+    const locCode = new Map(locations.map((l) => [l.id, l.ecount_code ?? '']));
+    const rows = entries
+      .filter((e) => e.deducted)
+      .sort((a, b) => a.entry_date.localeCompare(b.entry_date))
+      .map((e) => {
+        const vendor = ecountVendor(e.vendor_name);
+        const store = locCode.get(e.location_id) ?? '';
+        return [
+          e.entry_date,
+          '',
+          vendor?.code ?? '',
+          vendor?.name ?? (e.vendor_name ?? '').replace(/^\[[^\]]*\]\s*/, ''),
+          ECOUNT_SELFUSE_WAREHOUSE[store] ?? store,
+          '',
+          '',
+          e.sku,
+          e.product_name,
+          '',
+          e.qty,
+          e.reason ?? '',
+          e.remark ?? '',
+        ];
+      });
+    // 코드가 숫자로 바뀌면 앞자리 0이 사라지므로 문자열 셀로 고정 (수량만 숫자)
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows.map((r) => r.map((c, i) => (i === 10 ? c : String(c))))]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '자가사용');
+    XLSX.writeFile(wb, '자가사용_이카운트업로드.xlsx');
   }
 
   const pending = entries.filter((e) => !e.deducted);
@@ -253,8 +273,8 @@ export function SelfuseScreen() {
             type="button"
             className="lg-btn-ghost"
             onClick={handleDownload}
-            disabled={entries.length === 0}
-            title="내보낼 데이터가 없습니다"
+            disabled={!entries.some((e) => e.deducted)}
+            title="사유 입력이 끝난(차감 완료) 건을 이카운트 자가사용 업로드 양식으로 내려받습니다"
           >⬇ 엑셀 다운로드</button>
           </>)}
         </div>
