@@ -256,14 +256,17 @@ export function NoticesScreen({ initialOpenId, go }: { initialOpenId: string | n
                       </>
                     )}
                     {n.manual_id && (
-                      <button
-                        type="button"
-                        className="lg-btn-main"
-                        style={{ width: 'auto', height: 'auto', padding: '10px 16px', marginTop: 16, fontSize: '.88rem', textAlign: 'left' }}
-                        onClick={() => go('manuals', { manualId: n.manual_id! })}
-                      >
-                        📖 매뉴얼 보기: {manuals.find((m) => m.id === n.manual_id)?.title ?? '관련 운영매뉴얼'}
-                      </button>
+                      // 관리 버튼(수정·고정·삭제)과 붙어 보이지 않게 구분선으로 띄운다
+                      <div style={{ marginTop: 20, paddingBottom: 18, marginBottom: 14, borderBottom: '1px solid var(--lg-line-soft)' }}>
+                        <button
+                          type="button"
+                          className="lg-btn-main"
+                          style={{ width: 'auto', height: 'auto', padding: '10px 16px', marginTop: 0, fontSize: '.88rem', textAlign: 'left' }}
+                          onClick={() => go('manuals', { manualId: n.manual_id! })}
+                        >
+                          📖 매뉴얼 보기: {manuals.find((m) => m.id === n.manual_id)?.title ?? '관련 운영매뉴얼'}
+                        </button>
+                      </div>
                     )}
                     {canWrite && (
                       <div className="nt-actions">
