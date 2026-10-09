@@ -130,7 +130,7 @@ export function StockScreen() {
 
   function reload() {
     setLoading(true);
-    Promise.all([getFullStockBalance(), getInTransit(), getLocations(), getProducts()])
+    Promise.all([getFullStockBalance(), getInTransit(), getLocations(), getProducts({ includeInactive: true })])
       .then(([b, t, l, p]) => {
         setBalances(b);
         setTransits(t);
@@ -158,6 +158,8 @@ export function StockScreen() {
       if (!map[b.product_id]) {
         const p = prodMap[b.product_id];
         if (!p) continue;
+        // 비활성 상품은 재고가 있는 위치가 있을 때만 표시
+        if (!p.active && b.on_hand === 0) continue;
         map[b.product_id] = { product_id: b.product_id, name: p.name, sku: p.sku, vendor_name: p.vendor_name ?? null, locations: {} };
       }
       map[b.product_id].locations[b.location_id] = {

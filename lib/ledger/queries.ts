@@ -25,15 +25,17 @@ export async function getLocations(): Promise<LocationRow[]> {
   return (data ?? []) as LocationRow[];
 }
 
-export async function getProducts(): Promise<ProductRow[]> {
+// includeInactive: 재고현황처럼 비활성 상품의 재고도 보여야 하는 화면용 (2026-10-09 키캡 11710 미표시 건)
+export async function getProducts(opts: { includeInactive?: boolean } = {}): Promise<ProductRow[]> {
   // PostgREST 기본 1000행 제한 — 활성 상품이 1000개를 넘으면(현재 9천+) 페이지를 이어서 전부 가져온다.
   const PAGE = 1000;
   const all: ProductRow[] = [];
   for (let offset = 0; ; offset += PAGE) {
-    const { data, error } = await client()
+    let q = client()
       .from('products')
-      .select('id,sku,product_code,barcode,name,order_unit,lead_time_days,safety_stock,active')
-      .eq('active', true)
+      .select('id,sku,product_code,barcode,name,order_unit,lead_time_days,safety_stock,active');
+    if (!opts.includeInactive) q = q.eq('active', true);
+    const { data, error } = await q
       .order('name')
       .order('id') // 동명 상품 tiebreaker — range 페이징 안정화
       .range(offset, offset + PAGE - 1);
