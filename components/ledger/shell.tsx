@@ -29,7 +29,7 @@ function ScreenHost({ screen, go, opts }: { screen: ScreenId; go: GoFn; opts: Go
     case 'home':
       return <HomeScreen go={go} />;
     case 'notices':
-      return <NoticesScreen initialOpenId={opts.noticeId ?? null} />;
+      return <NoticesScreen initialOpenId={opts.noticeId ?? null} go={go} />;
     case 'manuals':
       return <ManualsScreen initialOpenId={opts.manualId ?? null} initialCategory={opts.category ?? null} />;
     case 'calendar':

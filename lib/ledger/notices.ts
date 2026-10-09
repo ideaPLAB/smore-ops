@@ -13,6 +13,7 @@ export interface NoticeRow {
   image_paths: string[];
   content: DocNode;
   pinned: boolean;
+  manual_id: string | null; // 하단 '관련 매뉴얼' 바로가기 (v0_41)
   author_name: string | null;
   created_at: string;
   updated_at: string;
@@ -28,7 +29,7 @@ function client() {
 export async function listNotices(limit?: number): Promise<NoticeRow[]> {
   let q = client()
     .from('notices')
-    .select('id,title,body,image_paths,content,pinned,author_name,created_at,updated_at')
+    .select('id,title,body,image_paths,content,pinned,manual_id,author_name,created_at,updated_at')
     .order('pinned', { ascending: false })
     .order('created_at', { ascending: false });
   if (limit) q = q.limit(limit);
@@ -39,7 +40,7 @@ export async function listNotices(limit?: number): Promise<NoticeRow[]> {
 
 export async function saveNotice(
   actorId: string,
-  input: { id: string | null; title: string; body: string; imagePaths: string[]; pinned: boolean; content: DocNode },
+  input: { id: string | null; title: string; body: string; imagePaths: string[]; pinned: boolean; content: DocNode; manualId: string | null },
 ): Promise<string> {
   const { data, error } = await client().rpc('app_save_notice', {
     p_actor: actorId,
@@ -49,6 +50,7 @@ export async function saveNotice(
     p_image_paths: input.imagePaths,
     p_pinned: input.pinned,
     p_content: input.content,
+    p_manual_id: input.manualId,
   });
   if (error) throw error;
   return data as string;

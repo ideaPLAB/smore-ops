@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useRole } from '../role-context';
 import { RichEditor, RichViewer } from '../rich-editor';
 import { listNotices, saveNotice, deleteNotice, fmtNoticeDate, isNewNotice, NoticeRow } from '@/lib/ledger/notices';
+import { listRecentManuals } from '@/lib/ledger/manuals';
+import type { GoFn } from '@/lib/ledger/roles';
 import {
   uploadContentImage, removeContentImages, contentImageUrl, imageUrlsIn, isDoc, isEmptyDoc, docToText, textToDoc, DocNode,
 } from '@/lib/ledger/rich-doc';
@@ -16,11 +18,14 @@ type Draft = {
   id: string | null;
   title: string;
   pinned: boolean;
+  manualId: string | null; // 하단 '관련 매뉴얼' 바로가기
   initial: DocNode | null; // 에디터 첫 내용 (옛 공지는 body+첨부 이미지를 문서로 바꿔서)
   originalImages: string[]; // 수정 전 공지에 있던 이미지 URL (저장 후 빠진 것 정리)
 };
 
-const EMPTY_DRAFT: Draft = { id: null, title: '', pinned: false, initial: null, originalImages: [] };
+const EMPTY_DRAFT: Draft = { id: null, title: '', pinned: false, manualId: null, initial: null, originalImages: [] };
+
+type ManualOpt = { id: string; title: string; category: string };
 const uploadNotice = (f: File) => uploadContentImage('notices', f);
 
 function errText(e: unknown) {
@@ -32,7 +37,7 @@ function noticeImages(n: NoticeRow): string[] {
   return [...imageUrlsIn(n.content), ...n.image_paths.map(contentImageUrl)];
 }
 
-export function NoticesScreen({ initialOpenId }: { initialOpenId: string | null }) {
+export function NoticesScreen({ initialOpenId, go }: { initialOpenId: string | null; go: GoFn }) {
   const { role, session } = useRole();
   const canWrite = role === 'admin' || role === 'hq';
 
@@ -42,6 +47,7 @@ export function NoticesScreen({ initialOpenId }: { initialOpenId: string | null 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
+  const [manuals, setManuals] = useState<ManualOpt[]>([]);
 
   function flash(msg: string) {
     setToast(msg);
@@ -59,6 +65,8 @@ export function NoticesScreen({ initialOpenId }: { initialOpenId: string | null 
 
   useEffect(() => {
     reload();
+    // 관련 매뉴얼 선택칸·바로가기 제목용
+    listRecentManuals(500).then((m) => setManuals(m as ManualOpt[])).catch(() => {});
   }, []);
 
   // 에디터 현재 내용·이번 편집에서 올린 이미지
@@ -75,7 +83,7 @@ export function NoticesScreen({ initialOpenId }: { initialOpenId: string | null 
   function startEdit(n: NoticeRow) {
     // 옛 공지(content 없음)는 본문 텍스트 + 첨부 이미지를 문서로 바꿔서 연다 → 저장하면 새 형식으로 전환
     const initial = isDoc(n.content) ? n.content : textToDoc(n.body, n.image_paths.map(contentImageUrl));
-    beginDraft({ id: n.id, title: n.title, pinned: n.pinned, initial, originalImages: noticeImages(n) });
+    beginDraft({ id: n.id, title: n.title, pinned: n.pinned, manualId: n.manual_id, initial, originalImages: noticeImages(n) });
   }
 
   async function cancelDraft() {
@@ -99,6 +107,7 @@ export function NoticesScreen({ initialOpenId }: { initialOpenId: string | null 
         imagePaths: [], // 이미지는 본문 안으로
         pinned: draft.pinned,
         content: doc,
+        manualId: draft.manualId,
       });
       // 저장된 본문에 없는 이미지(수정 중 뺀 기존 이미지 + 올렸다가 지운 이미지) 정리
       const kept = new Set(imageUrlsIn(doc));
@@ -132,7 +141,7 @@ export function NoticesScreen({ initialOpenId }: { initialOpenId: string | null 
     if (!session) return;
     try {
       await saveNotice(session.id, {
-        id: n.id, title: n.title, body: n.body, imagePaths: n.image_paths, pinned: !n.pinned, content: n.content,
+        id: n.id, title: n.title, body: n.body, imagePaths: n.image_paths, pinned: !n.pinned, content: n.content, manualId: n.manual_id,
       });
       await reload();
       flash(n.pinned ? '고정을 해제했습니다' : '상단에 고정했습니다');
@@ -175,6 +184,18 @@ export function NoticesScreen({ initialOpenId }: { initialOpenId: string | null 
             onError={flash}
           />
           <p className="mn-hint">이미지는 🖼 버튼, 붙여넣기, 끌어다 놓기 모두 됩니다 (10MB 이하). 표 안에 커서를 두면 행·열 편집 버튼이 나옵니다.</p>
+
+          <label className="lg-label" htmlFor="nt-manual">관련 매뉴얼 (선택)</label>
+          <select
+            id="nt-manual"
+            className="lg-select nt-field"
+            value={draft.manualId ?? ''}
+            onChange={(e) => setDraft({ ...draft, manualId: e.target.value || null })}
+          >
+            <option value="">연결 안 함</option>
+            {manuals.map((m) => <option key={m.id} value={m.id}>[{m.category}] {m.title}</option>)}
+          </select>
+          <p className="mn-hint">고르면 공지 맨 아래에 해당 운영매뉴얼로 바로 가는 버튼이 붙어요.</p>
 
           <label className="nt-check">
             <input type="checkbox" checked={draft.pinned} onChange={(e) => setDraft({ ...draft, pinned: e.target.checked })} />
@@ -233,6 +254,16 @@ export function NoticesScreen({ initialOpenId }: { initialOpenId: string | null 
                           </div>
                         )}
                       </>
+                    )}
+                    {n.manual_id && (
+                      <button
+                        type="button"
+                        className="lg-btn-main"
+                        style={{ width: 'auto', height: 'auto', padding: '10px 16px', marginTop: 16, fontSize: '.88rem', textAlign: 'left' }}
+                        onClick={() => go('manuals', { manualId: n.manual_id! })}
+                      >
+                        📖 매뉴얼 보기: {manuals.find((m) => m.id === n.manual_id)?.title ?? '관련 운영매뉴얼'}
+                      </button>
                     )}
                     {canWrite && (
                       <div className="nt-actions">
