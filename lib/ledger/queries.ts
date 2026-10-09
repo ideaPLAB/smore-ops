@@ -176,6 +176,31 @@ export async function getCurrentRound(): Promise<OrderRound | null> {
   return data as OrderRound | null;
 }
 
+// 본사·마스터: 열린 라운드 마감일 수정 (security definer RPC, schema_patch_v0_39.sql)
+export async function updateRoundDue(actorId: string, roundId: string, dueAt: string): Promise<void> {
+  const { error } = await client().rpc('app_update_round_due', {
+    p_actor: actorId,
+    p_round: roundId,
+    p_due: dueAt,
+  });
+  if (error) throw error;
+}
+
+// 본사·마스터: 새 라운드 열기 — 열려 있던 라운드는 닫히고 지금 기준 제안수량으로 개설 (v0_39)
+export async function openOrderRound(
+  actorId: string,
+  title: string,
+  dueAt: string,
+): Promise<{ round_id: string; input_rows: number; closed_rounds: number }> {
+  const { data, error } = await client().rpc('app_open_order_round', {
+    p_actor: actorId,
+    p_title: title,
+    p_due: dueAt,
+  });
+  if (error) throw error;
+  return (Array.isArray(data) ? data[0] : data) as { round_id: string; input_rows: number; closed_rounds: number };
+}
+
 export async function getOrderInputs(roundId: string, locationId?: string): Promise<OrderInput[]> {
   let q = client()
     .from('order_inputs')

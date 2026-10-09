@@ -17,6 +17,8 @@ import {
   getConfirmationVouchers,
   cancelConfirmationOrder,
   updateVoucherLine,
+  updateRoundDue,
+  openOrderRound,
   SupabaseMissingError,
   type OrderBoardRow,
   type OrderRound,
@@ -45,6 +47,25 @@ function daysSinceAsof(asof: string | null): number | null {
   if (!asof) return null;
   const ms = Date.now() - new Date(asof).getTime();
   return Math.floor(ms / 86400000);
+}
+
+// 마감일 — DB는 timestamptz, 화면·입력은 한국시간(KST) 기준
+function kstParts(iso: string) {
+  const d = new Date(new Date(iso).getTime() + 9 * 3600000);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return {
+    date: `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`,
+    time: `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`,
+  };
+}
+function formatDue(iso: string): string {
+  const { date, time } = kstParts(iso);
+  return `${date} ${time}`;
+}
+function dueInputValue(iso: string | null): string {
+  if (!iso) return '';
+  const { date, time } = kstParts(iso);
+  return `${date}T${time}`;
 }
 
 function rowClass(row: OrderBoardRow, inputVal: number | null, proposed: number): string {
@@ -253,8 +274,82 @@ function VoucherEditModal({
   );
 }
 
+// 라운드 관리 모달 (본사·마스터) — 마감일 수정 / 새 라운드 열기
+function RoundModal({
+  mode, actorId, round, onClose, onDone,
+}: {
+  mode: 'due' | 'open';
+  actorId: string;
+  round: OrderRound | null;
+  onClose: () => void;
+  onDone: (msg: string) => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [due, setDue] = useState(mode === 'due' ? dueInputValue(round?.due_at ?? null) : '');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  async function save() {
+    if (mode === 'open' && !title.trim()) { setErr('라운드 제목을 입력해 주세요'); return; }
+    if (!due) { setErr('마감일을 입력해 주세요'); return; }
+    if (mode === 'open' && round && !window.confirm(`지금 열려 있는 "${round.title}" 라운드는 닫힙니다. 새 라운드를 열까요?`)) return;
+    setSaving(true); setErr('');
+    const dueAt = `${due}:00+09:00`;
+    try {
+      if (mode === 'due' && round) {
+        await updateRoundDue(actorId, round.id, dueAt);
+        onDone(`✅ 마감일 변경 — ${due.replace('T', ' ')}`);
+      } else {
+        const res = await openOrderRound(actorId, title.trim(), dueAt);
+        onDone(`✅ 새 라운드 "${title.trim()}" 열림 — 제안 ${res.input_rows}건`);
+      }
+      onClose();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16 }}
+      onClick={(e) => { if (e.target === e.currentTarget && !saving) onClose(); }}
+    >
+      <div style={{ background: 'white', borderRadius: 16, padding: 24, width: '100%', maxWidth: 420, boxShadow: '0 8px 32px rgba(0,0,0,.18)' }}>
+        <h2 style={{ margin: '0 0 4px', fontSize: '1.05rem' }}>{mode === 'due' ? '마감일 수정' : '새 발주 라운드 열기'}</h2>
+        <p style={{ margin: '0 0 16px', color: 'var(--lg-muted)', fontSize: '.8rem' }}>
+          {mode === 'due'
+            ? `${round?.title ?? ''} · 한국시간 기준`
+            : '지금 판매·재고 기준으로 제안수량이 새로 계산됩니다. 열려 있던 라운드는 닫힙니다.'}
+        </p>
+
+        {err && <p className="lg-err" style={{ fontSize: '.82rem' }}>{err}</p>}
+
+        {mode === 'open' && (
+          <label style={{ display: 'block', marginBottom: 12, fontSize: '.82rem' }}>
+            라운드 제목
+            <input className="lg-input" style={{ width: '100%', marginTop: 4 }} placeholder="예: 10월 3주차 발주" value={title} disabled={saving} onChange={(e) => setTitle(e.target.value)} />
+          </label>
+        )}
+        <label style={{ display: 'block', fontSize: '.82rem' }}>
+          마감일
+          <input type="datetime-local" className="lg-input" style={{ width: '100%', marginTop: 4 }} value={due} disabled={saving} onChange={(e) => setDue(e.target.value)} />
+        </label>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'flex-end', alignItems: 'center' }}>
+          <button type="button" className="lg-btn-ghost" style={{ padding: '10px 20px', fontSize: '.9rem' }} onClick={onClose} disabled={saving}>취소</button>
+          <button type="button" className="lg-btn-main" style={{ width: 'auto', padding: '10px 20px', marginTop: 0 }} disabled={saving} onClick={save}>
+            {saving ? '저장 중…' : mode === 'due' ? '저장' : '라운드 열기'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function BoardScreen() {
-  const { role } = useRole();
+  const { role, session } = useRole();
 
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [locationId, setLocationId] = useState('');
@@ -276,6 +371,7 @@ export function BoardScreen() {
   const [cancellingNo, setCancellingNo] = useState<string | null>(null);
   const [showReview, setShowReview] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [roundModal, setRoundModal] = useState<'due' | 'open' | null>(null);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   function showToast(msg: string) {
@@ -543,15 +639,23 @@ export function BoardScreen() {
 
   return (
     <section className="lg-screen">
-      <div className="lg-page-head">
+      <div className="lg-page-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <div>
           <p className="lg-sub">
-            {round ? `${round.title} · 마감 ${round.due_at.slice(0, 10)}` : '열린 발주 라운드 없음'}
+            {round ? `${round.title} · 마감 ${formatDue(round.due_at)}` : '열린 발주 라운드 없음'}
             {asof && <span style={{ marginLeft: 8, fontWeight: 600, color: salesStale ? 'var(--lg-rust)' : undefined }}>
               · 판매 기준 {asof}
             </span>}
           </p>
         </div>
+        {isHq && session && status === 'ready' && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {round && (
+              <button type="button" className="lg-btn-ghost" onClick={() => setRoundModal('due')}>마감일 수정</button>
+            )}
+            <button type="button" className="lg-btn-ghost" onClick={() => setRoundModal('open')}>새 라운드 열기</button>
+          </div>
+        )}
       </div>
 
       {/* 판매 신선도 경고 배너 (§0-B-4) */}
@@ -750,6 +854,16 @@ export function BoardScreen() {
           voucher={editVoucher}
           onClose={() => setEditVoucher(null)}
           onChanged={(msg) => { showToast(msg); loadData(locationId); }}
+        />
+      )}
+
+      {roundModal && session && (
+        <RoundModal
+          mode={roundModal}
+          actorId={session.id}
+          round={round}
+          onClose={() => setRoundModal(null)}
+          onDone={(msg) => { showToast(msg); setStatus('loading'); loadData(locationId); }}
         />
       )}
 
