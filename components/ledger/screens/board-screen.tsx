@@ -350,7 +350,9 @@ function RoundModal({
 }
 
 export function BoardScreen() {
-  const { role, session } = useRole();
+  const { role, session, locationName } = useRole();
+  // 매장 매니저는 자기 매장 발주판만 (로그인 계정의 매장으로 고정, 2026.10.09)
+  const isManager = role === 'manager';
 
   const [locations, setLocations] = useState<LocationRow[]>([]);
   const [locationId, setLocationId] = useState('');
@@ -396,8 +398,19 @@ export function BoardScreen() {
       setAsof(asofDate);
       setRound(rnd);
 
-      const targetLoc = locId ?? (stores[0]?.id ?? '');
-      if (targetLoc && !locId) setLocationId(targetLoc);
+      // 매니저: 로그인 매장으로 고정. 매칭 실패 시 빈 화면 — 전체 매장으로 새지 않게
+      const ownLoc = isManager ? stores.find((l) => l.name === locationName) : undefined;
+      if (isManager && !ownLoc) {
+        setLocationId('');
+        setBoard([]);
+        setInputs(new Map());
+        setConfirmation(null);
+        setVouchers([]);
+        setStatus('ready');
+        return;
+      }
+      const targetLoc = isManager ? ownLoc!.id : (locId ?? (stores[0]?.id ?? ''));
+      if (targetLoc && targetLoc !== locId) setLocationId(targetLoc);
 
       const [boardRows, oinputs] = await Promise.all([
         getOrderBoard(targetLoc || undefined),
@@ -429,7 +442,8 @@ export function BoardScreen() {
     }
   }
 
-  useEffect(() => { loadData(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { setStatus('loading'); loadData(); }, [isManager, locationName]);
 
   async function onLocationChange(id: string) {
     setLocationId(id);
@@ -565,7 +579,7 @@ export function BoardScreen() {
     }
   }
 
-  const storeLocations = locations.filter((l) => l.type === 'store' || l.type === 'popup');
+  const storeLocations = locations.filter((l) => (l.type === 'store' || l.type === 'popup') && (!isManager || l.name === locationName));
 
   // 표시할 행 필터 — 상품명 · SKU · 업체명 · 바코드 검색
   const filtered = board.filter((r) => {
@@ -786,13 +800,17 @@ export function BoardScreen() {
                 onChange={(e) => setSearchQ(e.target.value)}
               />
             </div>
-            <select
-              className="lg-select"
-              value={locationId}
-              onChange={(e) => onLocationChange(e.target.value)}
-            >
-              {storeLocations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-            </select>
+            {isManager ? (
+              <span className="lg-select" style={{ display: 'inline-flex', alignItems: 'center', pointerEvents: 'none' }}>{locationName}</span>
+            ) : (
+              <select
+                className="lg-select"
+                value={locationId}
+                onChange={(e) => onLocationChange(e.target.value)}
+              >
+                {storeLocations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            )}
             <div className="lg-chip-toggle">
               <button type="button" className={viewMode === 'action' ? 'on' : ''} onClick={() => setViewMode('action')}>조치 필요만</button>
               <button type="button" className={viewMode === 'all' ? 'on' : ''} onClick={() => setViewMode('all')}>전체</button>
@@ -842,7 +860,9 @@ export function BoardScreen() {
 
             {filtered.length === 0 && (
               <div className="lg-empty" style={{ padding: '20px 16px' }}>
-                {viewMode === 'action' ? '조치 필요한 상품이 없습니다' : '상품 데이터가 없습니다'}
+                {isManager && !locationId
+                  ? `로그인 계정의 매장(${locationName})을 찾을 수 없습니다. 본사에 계정 매장 설정을 확인해 주세요.`
+                  : viewMode === 'action' ? '조치 필요한 상품이 없습니다' : '상품 데이터가 없습니다'}
               </div>
             )}
 
