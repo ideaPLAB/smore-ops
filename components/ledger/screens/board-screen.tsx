@@ -10,6 +10,7 @@ import {
   getOrderInputs,
   saveOrderInput,
   resetOrderInputs,
+  saveOrderInputsBulk,
   previewRoundSplit,
   confirmRoundOrders,
   getConfirmation,
@@ -452,16 +453,16 @@ export function BoardScreen() {
     }
   }
 
-  // 최종수량: 사용자가 입력한 값이 있으면 그 값, 없으면 제안수량
+  // 최종수량: 입력한 값만 발주 — 빈칸은 발주 안 함 (v0_40, 2026.10.09)
   function finalQtyOf(row: OrderBoardRow): number {
-    const v = inputs.get(inputKey(row));
-    return v != null ? v : row.proposed_qty;
+    if (row.dead_stock_6m) return 0;
+    return inputs.get(inputKey(row)) ?? 0;
   }
 
   function handleDownload() {
     // 화면 컬럼 순서와 동일하게: 품목코드 > 상품명 > 바코드 > 업체명 > 단위 > 재고 > 이동중 > 주판매 > 30일 > 제안 > 최종수량
     const headers = ['품목코드', '상품명', '바코드', '업체명', '단위', '재고', '이동중', '주판매', '30일', '제안', '최종수량', '상품코드', '공급구분', '발주가능'];
-    const rows = filtered.map((r) => [
+    const rows = orderedRows.map((r) => [
       r.sku,
       r.name,
       r.barcode ?? '',
@@ -472,7 +473,7 @@ export function BoardScreen() {
       r.sales_7d,
       r.sales_30d,
       r.dead_stock_6m ? 0 : r.proposed_qty,
-      r.dead_stock_6m ? 0 : finalQtyOf(r),
+      finalQtyOf(r),
       r.alt_code ?? '',
       r.supply_type ?? '',
       r.dead_stock_6m ? '불가' : '가능',
@@ -512,7 +513,7 @@ export function BoardScreen() {
   async function handleResetInputs() {
     if (!round || !locationId) return;
     const locName = locations.find((l) => l.id === locationId)?.name ?? '이 매장';
-    if (!window.confirm(`${locName}의 입력한 최종수량을 전부 비울까요? (제안수량은 유지됩니다)`)) return;
+    if (!window.confirm(`${locName}의 입력한 최종수량을 전부 비울까요? 비운 상품은 발주되지 않습니다.`)) return;
     setResetting(true);
     try {
       const n = await resetOrderInputs(round.id, locationId);
@@ -522,6 +523,29 @@ export function BoardScreen() {
       showToast(`리셋 실패: ${(e as Error).message}`);
     } finally {
       setResetting(false);
+    }
+  }
+
+  // 제안수량 채우기 — 지금 화면에 보이는 상품 중 빈칸에만 제안수량을 넣는다
+  const [filling, setFilling] = useState(false);
+  async function handleFillProposed() {
+    if (!round || !locationId) return;
+    const targets = filtered.filter((r) => !r.dead_stock_6m && r.proposed_qty > 0 && inputs.get(inputKey(r)) == null);
+    if (targets.length === 0) { showToast('채울 빈칸이 없어요'); return; }
+    if (!window.confirm(`화면에 보이는 상품 중 빈칸 ${targets.length}개에 제안수량을 채울까요? (이미 입력한 수량은 그대로)`)) return;
+    setFilling(true);
+    try {
+      await saveOrderInputsBulk(round.id, locationId, targets.map((r) => ({ product_id: r.product_id, qty: r.proposed_qty })));
+      setInputs((prev) => {
+        const m = new Map(prev);
+        targets.forEach((r) => m.set(inputKey(r), r.proposed_qty));
+        return m;
+      });
+      showToast(`제안수량 ${targets.length}건 채움 — 필요 없는 상품은 지워주세요`);
+    } catch (e) {
+      showToast(`채우기 실패: ${(e as Error).message}`);
+    } finally {
+      setFilling(false);
     }
   }
 
@@ -561,9 +585,9 @@ export function BoardScreen() {
   });
 
   // KPI — 입력 진행은 조치 필요 행 기준으로만 센다 (라운드에 남은 옛 입력값이 끼면 4/0처럼 보이는 문제 방지)
-  const actionRows = board.filter((r) => r.proposed_qty > 0 || r.dead_stock_6m);
-  const totalAction = actionRows.length;
-  const inputCount = actionRows.filter((r) => inputs.get(inputKey(r)) != null).length;
+  // 발주 대상 = 최종수량을 1 이상 입력한 상품 (빈칸·0은 발주 안 함)
+  const orderedRows = board.filter((r) => finalQtyOf(r) > 0);
+  const orderedQty = orderedRows.reduce((sum, r) => sum + finalQtyOf(r), 0);
   const devCount = filtered.filter((r) => {
     const v = inputs.get(inputKey(r));
     return v != null && r.proposed_qty > 0 && Math.abs(v - r.proposed_qty) / r.proposed_qty >= 0.3;
@@ -627,7 +651,7 @@ export function BoardScreen() {
             min="0"
             step={row.order_unit}
             className={`lg-qty-input${isSaving ? ' saving' : ''}`}
-            placeholder={isDead ? '잠김' : String(row.proposed_qty || '')}
+            placeholder={isDead ? '잠김' : ''}
             disabled={isDead || !round}
             value={inputVal ?? ''}
             onChange={(e) => handleQtyChange(row, e.target.value)}
@@ -739,13 +763,14 @@ export function BoardScreen() {
 
           {/* KPI */}
           <div className="lg-kpis">
-            <div className="lg-kpi"><div className="lg-kl">입력 진행</div><div className="lg-kv">{inputCount} / {totalAction}</div></div>
+            <div className="lg-kpi"><div className="lg-kl">발주 입력</div><div className="lg-kv">{orderedRows.length}개 상품 · {orderedQty}개</div></div>
             <div className="lg-kpi"><div className="lg-kl">제안 대비 ±30% 이탈</div><div className="lg-kv lg-warn">{devCount}</div></div>
             <div className="lg-kpi"><div className="lg-kl">6개월 미판매</div><div className="lg-kv lg-bad">{deadCount}</div></div>
           </div>
 
           {/* 제안 공식 안내 */}
           <div className="lg-card" style={{ padding: '10px 16px', marginBottom: 12, fontSize: '.76rem', color: 'var(--lg-muted)', lineHeight: 1.7 }}>
+            <b style={{ color: 'var(--lg-ink)' }}>최종수량을 입력한 상품만 발주됩니다</b> (빈칸 = 발주 안 함). [제안수량 채우기]로 빈칸에 제안수량을 한 번에 넣을 수 있어요.<br />
             <b style={{ color: 'var(--lg-ink)' }}>제안수량</b> = 주판매 × (배송기간＋1주) ＋ 안전재고 − (매장재고＋이동중) 을 발주단위로 올림.
             신규 상품은 유사상품 기준 · 6개월 미판매/발주불가 상품은 제안 0으로 잠김.
           </div>
@@ -780,6 +805,11 @@ export function BoardScreen() {
                 {groupByVendor ? '목록 보기' : '업체별 묶기'}
               </button>
               {round && !confirmation && (
+                <button type="button" className="lg-btn-ghost" disabled={filling} onClick={handleFillProposed}>
+                  {filling ? '채우는 중…' : '제안수량 채우기'}
+                </button>
+              )}
+              {round && !confirmation && (
                 <button type="button" className="lg-btn-ghost" disabled={resetting} onClick={handleResetInputs}>
                   {resetting ? '리셋 중…' : 'RESET'}
                 </button>
@@ -788,8 +818,8 @@ export function BoardScreen() {
                 type="button"
                 className="lg-btn-ghost"
                 onClick={handleDownload}
-                disabled={filtered.length === 0}
-                title={filtered.length === 0 ? '내보낼 데이터가 없습니다' : undefined}
+                disabled={orderedRows.length === 0}
+                title={orderedRows.length === 0 ? '최종수량을 입력한 상품이 없습니다' : '최종수량을 입력한 상품만 받아요'}
               >⬇ 엑셀 다운로드</button>
             </div>
           </div>

@@ -229,6 +229,21 @@ export async function saveOrderInput(
   if (error) throw error;
 }
 
+// 제안수량 채우기 — 빈칸인 상품에만 수량 일괄 저장, 이미 입력한 값은 유지 (save_order_inputs_bulk, v0_40)
+export async function saveOrderInputsBulk(
+  roundId: string,
+  locationId: string,
+  items: { product_id: string; qty: number }[],
+): Promise<number> {
+  const { data, error } = await client().rpc('save_order_inputs_bulk', {
+    p_round: roundId,
+    p_location: locationId,
+    p_items: items,
+  });
+  if (error) throw error;
+  return (data as number) ?? 0;
+}
+
 export async function resetOrderInputs(roundId: string, locationId: string): Promise<number> {
   // 확정 취소는 입력값을 복원하므로(v0_19), 입력 비우기는 이 RPC로 명시적으로 리셋한다.
   // security definer RPC(reset_order_inputs, schema_patch_v0_22.sql).
