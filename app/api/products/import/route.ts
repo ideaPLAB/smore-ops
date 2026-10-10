@@ -20,7 +20,6 @@ interface ProductImportRow {
   vendor_name: string | null;
   supply_type: string | null;
   order_unit: number;
-  active: boolean;
 }
 
 export async function POST(req: NextRequest) {
@@ -41,7 +40,7 @@ export async function POST(req: NextRequest) {
     const nameIdx = headers.indexOf('품목명');
     const barcodeIdx = headers.indexOf('바코드');
     const orderUnitIdx = headers.indexOf('발주기준수량');
-    const shareIdx = headers.indexOf('품목공유여부');
+    // '품목공유여부'는 업체 공유 여부라 사용 여부와 무관 — active는 업로드로 건드리지 않음 (신규 품목은 DB 기본값 true)
     const vendorIdx = headers.indexOf('품목그룹2명');   // 업체명
     const supplyIdx = headers.indexOf('품목그룹3명');   // 공급구분 (자사/위탁/사입)
 
@@ -65,9 +64,6 @@ export async function POST(req: NextRequest) {
       const name = String(row[nameIdx] ?? '').trim();
       if (!name) continue;
 
-      const share = shareIdx >= 0 ? String(row[shareIdx] ?? '').trim() : '사용';
-      const active = share !== '미사용';
-
       const productCodeRaw = productCodeIdx >= 0 ? String(row[productCodeIdx] ?? '').trim() : '';
       const barcodeRaw = barcodeIdx >= 0 ? String(row[barcodeIdx] ?? '').trim() : '';
       const vendorRaw = vendorIdx >= 0 ? String(row[vendorIdx] ?? '').trim() : '';
@@ -84,7 +80,6 @@ export async function POST(req: NextRequest) {
         vendor_name: vendorRaw || null,
         supply_type: supplyRaw || null,
         order_unit,
-        active,
       });
     }
 
